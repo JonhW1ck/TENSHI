@@ -4,6 +4,8 @@ import streamlit as st
 from modules.orchestrator import responder
 from memory.memory import limpiar_historial
 from memory.stats import obtener_stats
+import os
+import glob
 
 st.set_page_config(
     page_title="TENSHI · NHRX LABS",
@@ -156,6 +158,25 @@ if enviar and entrada.strip():
         respuesta = responder(mensaje)
     st.session_state.mensajes_ui.append({"rol": "tenshi", "texto": respuesta})
     st.rerun()
+# Historial de conversaciones
+with st.expander("📅 HISTORIAL DE CONVERSACIONES"):
+    archivos_log = sorted(glob.glob("logs/tenshi_*.txt"), reverse=True)
+    if not archivos_log:
+        st.markdown("<span style='color:rgba(255,255,255,0.3);font-size:13px;'>No hay conversaciones guardadas.</span>", unsafe_allow_html=True)
+    else:
+        fechas = [os.path.basename(f).replace("tenshi_","").replace(".txt","") for f in archivos_log]
+        fecha_sel = st.selectbox("Selecciona una fecha", fechas, label_visibility="collapsed")
+        archivo_sel = f"logs/tenshi_{fecha_sel}.txt"
+        with open(archivo_sel, "r", encoding="utf-8-sig") as f:
+            contenido = f.read()
+        st.markdown(f"""
+        <div style='background:#0f0f0f;border:1px solid rgba(255,255,255,0.06);
+        border-radius:8px;padding:16px;font-family:Share Tech Mono,monospace;
+        font-size:12px;color:rgba(255,255,255,0.6);white-space:pre-wrap;
+        max-height:300px;overflow-y:auto;'>
+        {contenido}
+        </div>
+        """, unsafe_allow_html=True)
 
 # Footer
 st.markdown("""
