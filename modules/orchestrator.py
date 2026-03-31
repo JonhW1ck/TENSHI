@@ -8,6 +8,7 @@ from logs.logger import guardar_log
 from modules.code_runner import ejecutar_codigo
 from modules.vision import analizar_imagen
 from memory.stats import incrementar
+from modules.reasoning import construir_razonamiento
 
 def obtener_cliente():
     """Intenta conectarse a la API disponible."""
@@ -138,9 +139,9 @@ def responder(mensaje_usuario):
             mensajes.append({"role": "user", "content": contenido})
             mensajes.append({"role": "assistant", "content": "Entendido, tengo el contenido del archivo."})
 
-    # Agregar historial y mensaje actual
+    # Agregar historial y mensaje actual con razonamiento
     mensajes += obtener_historial()
-    mensajes.append({"role": "user", "content": mensaje_usuario})
+    mensajes.append({"role": "user", "content": construir_razonamiento(mensaje_usuario)})
 
     # Llamar a la API
     respuesta = cliente.chat.completions.create(
