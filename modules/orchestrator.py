@@ -1,7 +1,7 @@
 # Orquestador de TENSHI - decide cómo responder
 
 from groq import Groq
-from config import APIS, NOMBRE_IA, MAX_TOKENS, TEMPERATURA
+from config import APIS, NOMBRE_IA, MAX_TOKENS, TEMPERATURA, PERSONALIDAD
 from memory.memory import agregar_mensaje, obtener_historial
 from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
 from logs.logger import guardar_log
@@ -103,7 +103,7 @@ def responder(mensaje_usuario):
 
     # Construir lista de mensajes
     mensajes = [
-        {"role": "system", "content": f"Eres {NOMBRE_IA}, una IA asistente extremadamente capaz. Haces exactamente lo que se te pide, de forma precisa y completa. Respondes siempre en el idioma del usuario. Cuando te den resultados de internet o contenido de archivos, úsalos directamente para responder. Cuando te pidan ejecutar código, escríbelo siempre dentro de bloques ```python ```"}
+       {"role": "system", "content": PERSONALIDAD}
     ]
 
     # Herramienta: visión (tiene prioridad, responde directo)
