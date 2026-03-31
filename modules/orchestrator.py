@@ -8,7 +8,7 @@ from logs.logger import guardar_log
 from modules.code_runner import ejecutar_codigo
 from modules.vision import analizar_imagen
 from memory.stats import incrementar
-from modules.reasoning import construir_razonamiento
+from modules.reasoning import construir_razonamiento, evaluar_respuesta
 
 def obtener_cliente():
     """Intenta conectarse a la API disponible."""
@@ -153,6 +153,28 @@ def responder(mensaje_usuario):
 
     # Extraer texto
     texto = respuesta.choices[0].message.content
+
+    # Auto-evaluación
+    print("🔎 Auto-evaluando respuesta...")
+    eval_mensajes = [
+        {"role": "system", "content": PERSONALIDAD},
+        {"role": "user", "content": evaluar_respuesta(mensaje_usuario, texto)}
+    ]
+    eval_respuesta = cliente.chat.completions.create(
+        model=modelo,
+        messages=eval_mensajes,
+        max_tokens=MAX_TOKENS,
+        temperature=0.3
+    )
+    eval_texto = eval_respuesta.choices[0].message.content
+
+    if "MEJORAR:" in eval_texto:
+        print("⚡ Mejorando respuesta...")
+        texto = eval_texto.split("MEJORAR:")[-1].strip()
+    elif "APROBADA:" in eval_texto:
+        texto = eval_texto.split("APROBADA:")[-1].strip()
+    else:
+        pass
 
     # Guardar en memoria y log
     incrementar("mensajes_totales")
