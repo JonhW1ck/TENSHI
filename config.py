@@ -25,7 +25,7 @@ PATHS = {
 
 APIS = {
     "groq": {
-        "api_key": "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",
+        "api_key": os.getenv("GROQ_API_KEY"),
         "activa": True,
         "priority": 1
     }

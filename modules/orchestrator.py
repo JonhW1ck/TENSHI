@@ -1,24 +1,25 @@
-# Orquestador de TENSHI
+# Orquestador de TENSHI (CEREBRO REAL)
 
 from groq import Groq
 from config import APIS, MODELOS, MODEL_CONFIG, PERSONALIDAD
 
-from memory.memory import agregar_mensaje, obtener_historial
-from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
+from memory.memory import (
+    agregar_mensaje,
+    obtener_historial,
+    agregar_pendiente,
+    obtener_pendientes
+)
+
 from logs.logger import guardar_log
 from memory.stats import incrementar
 
+from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
 from modules.code_runner import ejecutar_codigo
 from modules.vision import analizar_imagen
-from modules.reasoning import construir_razonamiento
 from modules.planner import construir_plan
+from modules.reasoning import construir_razonamiento
 
-
-# ==========================================
-# CONFIG
-# ==========================================
-
-MAX_HISTORY = 10
+MAX_HISTORY = 8
 
 
 # ==========================================
@@ -26,80 +27,49 @@ MAX_HISTORY = 10
 # ==========================================
 
 def obtener_cliente():
-
     for nombre, datos in APIS.items():
-
         if datos["activa"]:
-
             try:
-
                 cliente = Groq(api_key=datos["api_key"])
                 modelo = MODELOS["principal"]
-
-                print(f"✅ API conectada: {nombre} | modelo {modelo}")
-
+                print(f"✅ API: {nombre} | modelo {modelo}")
                 return cliente, modelo
-
             except Exception as e:
-
-                print(f"❌ API {nombre} falló:", e)
-
+                print(f"❌ {nombre} falló:", e)
     raise Exception("No hay APIs disponibles")
 
 
 # ==========================================
-# DETECTORES
+# INTENCIÓN (CEREBRO)
 # ==========================================
 
-def contiene(mensaje, palabras):
+def detectar_intencion(mensaje):
+    m = mensaje.lower()
 
-    mensaje = mensaje.lower()
+    # VIDA REAL
+    if any(p in m for p in ["pendiente","tarea","recuerda","recordar"]):
+        return "memoria"
 
-    return any(p in mensaje for p in palabras)
+    if any(p in m for p in ["qué tengo que hacer","mis pendientes","tareas"]):
+        return "consultar_pendientes"
 
+    # SISTEMA
+    if any(ext in m for ext in [".jpg",".png",".jpeg",".webp",".gif"]):
+        return "vision"
 
-def necesita_busqueda(mensaje):
+    if any(p in m for p in ["busca","investiga","noticias","precio","clima"]):
+        return "internet"
 
-    palabras = [
-        "busca","buscar","investiga","googlea",
-        "noticias","precio","clima","temperatura",
-        "actualmente","reciente","últimas",
-        "quién es","qué es","dónde está"
-    ]
+    if any(ext in m for ext in [".txt",".py",".json",".csv",".md"]):
+        if any(p in m for p in ["lee","abre","muestra"]):
+            return "leer_archivo"
+        if any(p in m for p in ["guarda","crear","escribe"]):
+            return "escribir_archivo"
 
-    return contiene(mensaje, palabras)
+    if any(p in m for p in ["codigo","script","programa","ejecuta"]):
+        return "codigo"
 
-
-def necesita_leer_archivo(mensaje):
-
-    palabras = ["lee","leer","abre","abrir","mostrar"]
-
-    extensiones = [".txt",".csv",".py",".json",".md"]
-
-    return contiene(mensaje, palabras) or contiene(mensaje, extensiones)
-
-
-def necesita_escribir_archivo(mensaje):
-
-    palabras = ["guardar","guarda","crear","genera","escribe"]
-
-    extensiones = [".txt",".csv",".py",".json",".md"]
-
-    return contiene(mensaje, palabras) and contiene(mensaje, extensiones)
-
-
-def necesita_codigo(mensaje):
-
-    palabras = ["codigo","script","programa","ejecuta","calcula"]
-
-    return contiene(mensaje, palabras)
-
-
-def necesita_vision(mensaje):
-
-    extensiones = [".jpg",".jpeg",".png",".webp",".gif"]
-
-    return contiene(mensaje, extensiones)
+    return "chat"
 
 
 # ==========================================
@@ -107,32 +77,16 @@ def necesita_vision(mensaje):
 # ==========================================
 
 def extraer_ruta(mensaje):
-
-    palabras = mensaje.split()
-
-    extensiones = [".txt",".csv",".py",".json",".md"]
-
-    for p in palabras:
-
-        if any(ext in p for ext in extensiones):
-
+    for p in mensaje.split():
+        if any(ext in p for ext in [".txt",".py",".json",".csv",".md"]):
             return p.strip("\"',")
-
     return None
 
 
 def extraer_imagen(mensaje):
-
-    palabras = mensaje.split()
-
-    extensiones = [".jpg",".jpeg",".png",".webp",".gif"]
-
-    for p in palabras:
-
-        if any(ext in p for ext in extensiones):
-
+    for p in mensaje.split():
+        if any(ext in p for ext in [".jpg",".png",".jpeg",".webp",".gif"]):
             return p.strip("\"',")
-
     return None
 
 
@@ -143,78 +97,75 @@ def extraer_imagen(mensaje):
 def responder(mensaje_usuario):
 
     cliente, modelo = obtener_cliente()
-
-    mensajes = []
-
-    mensajes.append({
-        "role": "system",
-        "content": PERSONALIDAD
-    })
+    intencion = detectar_intencion(mensaje_usuario)
 
     # ======================================
-    # VISION
+    # MEMORIA INTELIGENTE
     # ======================================
 
-    if necesita_vision(mensaje_usuario):
+    if intencion == "memoria":
 
+        agregar_pendiente(mensaje_usuario)
+
+        respuesta = "📌 Guardado como pendiente."
+
+        agregar_mensaje("assistant", respuesta)
+
+        guardar_log("tenshi", respuesta)
+
+        return respuesta
+
+
+    if intencion == "consultar_pendientes":
+
+        pendientes = obtener_pendientes()
+
+        if not pendientes:
+            return "📋 No tienes pendientes registrados."
+
+        texto = "📋 Tus pendientes:\n\n"
+
+        for i, p in enumerate(pendientes, 1):
+            estado = "✅" if p.get("completado") else "⏳"
+            texto += f"{i}. {estado} {p['texto']}\n"
+
+        agregar_mensaje("assistant", texto)
+
+        return texto
+
+
+    mensajes = [{"role":"system","content":PERSONALIDAD}]
+
+    # ======================================
+    # EJECUCIÓN DIRECTA
+    # ======================================
+
+    if intencion == "vision":
         ruta = extraer_imagen(mensaje_usuario)
-
         if ruta:
-
-            print("👁️ Analizando imagen:", ruta)
-
             resultado = analizar_imagen(
                 ruta,
                 mensaje_usuario,
                 cliente,
                 "meta-llama/llama-4-scout-17b-16e-instruct"
             )
-
             agregar_mensaje("user", mensaje_usuario)
             agregar_mensaje("assistant", resultado)
-
             incrementar("imagenes_analizadas")
-
             return resultado
 
 
-    # ======================================
-    # BUSQUEDA INTERNET
-    # ======================================
-
-    if necesita_busqueda(mensaje_usuario):
-
-        print("🔎 búsqueda internet")
-
+    if intencion == "internet":
         resultados = buscar_en_internet(mensaje_usuario)
-
-        mensajes.append({
-            "role": "system",
-            "content": f"Información encontrada en internet:\n{resultados}"
-        })
-
+        mensajes.append({"role":"system","content":f"Info:\n{resultados}"})
         incrementar("busquedas_internet")
 
 
-    # ======================================
-    # LEER ARCHIVO
-    # ======================================
-
-    if necesita_leer_archivo(mensaje_usuario):
-
+    if intencion == "leer_archivo":
         ruta = extraer_ruta(mensaje_usuario)
-
         if ruta:
-
-            print("📂 leyendo archivo:", ruta)
-
             contenido = leer_archivo(ruta)
-
-            mensajes.append({
-                "role": "system",
-                "content": f"Contenido del archivo:\n{contenido}"
-            })
-
+            mensajes.append({"role":"system","content":contenido})
             incrementar("archivos_leidos")
 
 
@@ -223,7 +174,6 @@ def responder(mensaje_usuario):
     # ======================================
 
     historial = obtener_historial()[-MAX_HISTORY:]
-
     mensajes += historial
 
 
@@ -231,12 +181,9 @@ def responder(mensaje_usuario):
     # PLAN
     # ======================================
 
-    plan = construir_plan(mensaje_usuario)
-
-    mensajes.append({
-        "role": "system",
-        "content": f"Estrategia interna:\n{plan}"
-    })
+    if intencion in ["chat","codigo"]:
+        plan = construir_plan(mensaje_usuario)
+        mensajes.append({"role":"system","content":f"Estrategia:\n{plan}"})
 
 
     # ======================================
@@ -244,25 +191,20 @@ def responder(mensaje_usuario):
     # ======================================
 
     mensajes.append({
-        "role": "user",
+        "role":"user",
         "content": construir_razonamiento(mensaje_usuario)
     })
 
 
     # ======================================
-    # LLAMADA AL MODELO
+    # LLAMADA IA
     # ======================================
 
     respuesta = cliente.chat.completions.create(
-
         model=modelo,
-
         messages=mensajes,
-
         max_tokens=MODEL_CONFIG["max_tokens"],
-
         temperature=MODEL_CONFIG["temperature"]
-
     )
 
     texto = respuesta.choices[0].message.content
@@ -282,35 +224,25 @@ def responder(mensaje_usuario):
 
 
     # ======================================
-    # EJECUTAR CODIGO
+    # CÓDIGO
     # ======================================
 
-    if necesita_codigo(mensaje_usuario):
-
-        if "```python" in texto:
-
-            codigo = texto.split("```python")[1].split("```")[0]
-
-            resultado = ejecutar_codigo(codigo)
-
-            texto += f"\n\nResultado ejecución:\n{resultado}"
-
-            incrementar("codigos_ejecutados")
+    if intencion == "codigo" and "```python" in texto:
+        codigo = texto.split("```python")[1].split("```")[0]
+        resultado = ejecutar_codigo(codigo)
+        texto += f"\n\nResultado:\n{resultado}"
+        incrementar("codigos_ejecutados")
 
 
     # ======================================
-    # GUARDAR ARCHIVO
+    # ARCHIVO
     # ======================================
 
-    if necesita_escribir_archivo(mensaje_usuario):
-
+    if intencion == "escribir_archivo":
         ruta = extraer_ruta(mensaje_usuario)
-
         if ruta:
-
             escribir_archivo(ruta, texto)
-
-            print("💾 archivo guardado:", ruta)
+            print("💾 Guardado:", ruta)
 
 
     return texto
