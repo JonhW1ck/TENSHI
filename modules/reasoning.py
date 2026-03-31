@@ -1,31 +1,62 @@
-# Módulo de razonamiento de TENSHI
+# ============================================
+# RAZONAMIENTO INTERNO DE TENSHI
+# ============================================
 
 def construir_razonamiento(mensaje_usuario):
-    """Genera un prompt de razonamiento paso a paso."""
+    """
+    Genera un prompt de razonamiento interno.
+    Este razonamiento NO debe mostrarse al usuario.
+    """
+
     return f"""
-Antes de responder, analiza internamente (no muestres este análisis al usuario):
-1. ¿Qué está pidiendo exactamente el usuario?
-2. ¿Necesito buscar en internet, leer archivos, ejecutar código o analizar una imagen?
-3. ¿Cuál es la forma más precisa y completa de responder?
-4. ¿Hay algo ambiguo que deba aclarar?
+Piensa paso a paso antes de responder.
 
-Mensaje del usuario: {mensaje_usuario}
+Analiza internamente:
 
-Ahora responde de forma directa, precisa y completa. Sin mostrar el análisis interno.
+1. ¿Qué quiere realmente el usuario?
+2. ¿Necesito usar alguna herramienta?
+   - búsqueda en internet
+   - lectura de archivos
+   - ejecución de código
+   - análisis de imagen
+3. ¿Cuál es la forma más clara y correcta de responder?
+
+Mensaje del usuario:
+{mensaje_usuario}
+
+Ahora responde al usuario de forma directa y clara.
+NO muestres tu razonamiento interno.
 """
 
+
+# ============================================
+# AUTOEVALUACIÓN
+# ============================================
+
 def evaluar_respuesta(mensaje_usuario, respuesta):
-    """Genera un prompt para que TENSHI evalúe su propia respuesta."""
+    """
+    Evalúa si la respuesta es correcta.
+    Devuelve SOLO la respuesta final corregida.
+    """
+
     return f"""
-Evalúa tu propia respuesta con estos criterios:
-1. ¿Respondiste exactamente lo que se pidió? (sí/no)
-2. ¿La respuesta es completa o le falta información? (completa/incompleta)
-3. ¿Usaste las herramientas correctas? (sí/no)
-4. Puntuación del 1 al 10
+Revisa si la respuesta responde correctamente a la pregunta.
 
-Pregunta original: {mensaje_usuario}
-Tu respuesta: {respuesta}
+Pregunta del usuario:
+{mensaje_usuario}
 
-Si la puntuación es menor a 7, escribe "MEJORAR:" seguido de la respuesta mejorada.
-Si la puntuación es 7 o mayor, escribe "APROBADA:" seguido de la respuesta sin cambios.
+Respuesta generada:
+{respuesta}
+
+Si la respuesta es correcta y completa, devuelve exactamente:
+
+APROBADA: <respuesta final>
+
+Si la respuesta tiene errores o está incompleta, devuelve exactamente:
+
+MEJORAR: <respuesta corregida y mejorada>
+
+No expliques tu evaluación.
+No muestres análisis.
+Solo devuelve el formato indicado.
 """

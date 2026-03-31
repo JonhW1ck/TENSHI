@@ -1,8 +1,22 @@
+# Entorno virtual
 venv/
+
+# Python cache
 __pycache__/
 *.pyc
-config.py
-memory/memoria.json
+
+# Variables de entorno
+.env
+
+# Logs
 logs/
+
+# Sandbox de ejecución
+sandbox/
+
+# Memoria local (opcional si no quieres subirla)
+memory/memoria.json
+
+# Archivos temporales de imágenes
 *.jpg
 *.png

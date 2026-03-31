@@ -1,227 +1,316 @@
-# Orquestador de TENSHI - decide cómo responder
+# Orquestador de TENSHI
 
 from groq import Groq
-from config import APIS, NOMBRE_IA, MAX_TOKENS, TEMPERATURA, PERSONALIDAD
+from config import APIS, MODELOS, MODEL_CONFIG, PERSONALIDAD
+
 from memory.memory import agregar_mensaje, obtener_historial
 from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
 from logs.logger import guardar_log
+from memory.stats import incrementar
+
 from modules.code_runner import ejecutar_codigo
 from modules.vision import analizar_imagen
-from memory.stats import incrementar
-from modules.reasoning import construir_razonamiento, evaluar_respuesta
-from modules.background import ejecutar_en_segundo_plano, obtener_estado, listar_tareas
+from modules.reasoning import construir_razonamiento
+from modules.planner import construir_plan
+
+
+# ==========================================
+# CONFIG
+# ==========================================
+
+MAX_HISTORY = 10
+
+
+# ==========================================
+# CLIENTE API
+# ==========================================
 
 def obtener_cliente():
-    """Intenta conectarse a la API disponible."""
+
     for nombre, datos in APIS.items():
+
         if datos["activa"]:
+
             try:
+
                 cliente = Groq(api_key=datos["api_key"])
-                print(f"✅ Conectado a {nombre}")
-                return cliente, datos["model"]
+                modelo = MODELOS["principal"]
+
+                print(f"✅ API conectada: {nombre} | modelo {modelo}")
+
+                return cliente, modelo
+
             except Exception as e:
-                print(f"❌ Falló {nombre}: {e}")
-    raise Exception("No hay APIs disponibles.")
+
+                print(f"❌ API {nombre} falló:", e)
+
+    raise Exception("No hay APIs disponibles")
+
+
+# ==========================================
+# DETECTORES
+# ==========================================
+
+def contiene(mensaje, palabras):
+
+    mensaje = mensaje.lower()
+
+    return any(p in mensaje for p in palabras)
+
 
 def necesita_busqueda(mensaje):
-    """Detecta si el mensaje requiere buscar en internet."""
-    palabras_clave = [
-        "busca", "buscar", "busca en internet", "investiga", "googlea",
-        "noticias", "precio", "clima", "temperatura", "hoy", "hoy en día",
-        "actualmente", "últimas", "reciente", "ahora mismo",
-        "2024", "2025", "2026",
-        "quién es", "qué es", "dónde está", "cuándo fue", "cómo funciona",
-        "cuánto cuesta", "cuánto vale", "cuál es el",
-        "dólar", "euro", "bitcoin", "crypto", "bolsa", "acciones",
-        "partido", "resultado", "elecciones", "guerra", "terremoto",
-        "estreno", "lanzamiento", "nuevo", "última versión"
+
+    palabras = [
+        "busca","buscar","investiga","googlea",
+        "noticias","precio","clima","temperatura",
+        "actualmente","reciente","últimas",
+        "quién es","qué es","dónde está"
     ]
-    mensaje_lower = mensaje.lower()
-    return any(palabra in mensaje_lower for palabra in palabras_clave)
+
+    return contiene(mensaje, palabras)
+
 
 def necesita_leer_archivo(mensaje):
-    """Detecta si el mensaje pide leer un archivo."""
-    palabras_clave = ["lee", "leer", "abre", "abrir", "muestra", "mostrar"]
-    extensiones = [".txt", ".csv", ".py", ".json", ".md"]
-    mensaje_lower = mensaje.lower()
-    tiene_palabra = any(p in mensaje_lower for p in palabras_clave)
-    tiene_extension = any(e in mensaje_lower for e in extensiones)
-    return tiene_palabra or tiene_extension
 
-def necesita_ejecutar_codigo(mensaje):
-    """Detecta si el mensaje requiere ejecutar código Python."""
-    palabras_clave = [
-        "ejecuta", "ejecutar", "corre", "correr", "calcula", "calcular",
-        "programa", "programar", "código", "codigo", "script",
-        "resuelve", "resolver", "computa", "computar"
-    ]
-    mensaje_lower = mensaje.lower()
-    return any(palabra in mensaje_lower for palabra in palabras_clave)
+    palabras = ["lee","leer","abre","abrir","mostrar"]
 
-def necesita_vision(mensaje):
-    """Detecta si el mensaje incluye una imagen para analizar."""
-    palabras_clave = [
-        "imagen", "foto", "fotografía", "picture", "analiza", "analizar",
-        "mira", "mirar", "observa", "observar", "describe", "describir",
-        "qué ves", "qué hay", "qué muestra"
-    ]
-    extensiones = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
-    mensaje_lower = mensaje.lower()
-    tiene_palabra = any(p in mensaje_lower for p in palabras_clave)
-    tiene_extension = any(e in mensaje_lower for e in extensiones)
-    return tiene_palabra or tiene_extension
+    extensiones = [".txt",".csv",".py",".json",".md"]
 
-def extraer_ruta_imagen(mensaje):
-    """Extrae la ruta de la imagen del mensaje."""
-    palabras = mensaje.split()
-    extensiones = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
-    for palabra in palabras:
-        if any(ext in palabra.lower() for ext in extensiones):
-            return palabra.strip("\"'.,")
-    return None
-def necesita_tarea_larga(mensaje):
-    """Detecta si el mensaje requiere una tarea larga en segundo plano."""
-    palabras_clave = [
-        "en segundo plano", "mientras tanto", "sin bloquear",
-        "tarea larga", "procesa esto", "analiza todo",
-        "busca varios", "resume varios", "estado de la tarea"
-    ]
-    mensaje_lower = mensaje.lower()
-    return any(palabra in mensaje_lower for palabra in palabras_clave)
+    return contiene(mensaje, palabras) or contiene(mensaje, extensiones)
+
 
 def necesita_escribir_archivo(mensaje):
-    """Detecta si el mensaje pide escribir o guardar un archivo."""
-    palabras_clave = ["guarda", "guardar", "escribe", "escribir", "crea", "crear", "genera", "generar"]
-    extensiones = [".txt", ".csv", ".py", ".json", ".md"]
-    mensaje_lower = mensaje.lower()
-    tiene_palabra = any(p in mensaje_lower for p in palabras_clave)
-    tiene_extension = any(e in mensaje_lower for e in extensiones)
-    return tiene_palabra and tiene_extension
+
+    palabras = ["guardar","guarda","crear","genera","escribe"]
+
+    extensiones = [".txt",".csv",".py",".json",".md"]
+
+    return contiene(mensaje, palabras) and contiene(mensaje, extensiones)
+
+
+def necesita_codigo(mensaje):
+
+    palabras = ["codigo","script","programa","ejecuta","calcula"]
+
+    return contiene(mensaje, palabras)
+
+
+def necesita_vision(mensaje):
+
+    extensiones = [".jpg",".jpeg",".png",".webp",".gif"]
+
+    return contiene(mensaje, extensiones)
+
+
+# ==========================================
+# EXTRACTORES
+# ==========================================
 
 def extraer_ruta(mensaje):
-    """Extrae la ruta del archivo mencionado en el mensaje."""
+
     palabras = mensaje.split()
-    extensiones = [".txt", ".csv", ".py", ".json", ".md"]
-    for palabra in palabras:
-        if any(ext in palabra for ext in extensiones):
-            return palabra.strip("\"'.,")
+
+    extensiones = [".txt",".csv",".py",".json",".md"]
+
+    for p in palabras:
+
+        if any(ext in p for ext in extensiones):
+
+            return p.strip("\"',")
+
     return None
 
-def responder(mensaje_usuario):
-    """Recibe un mensaje y devuelve la respuesta de TENSHI."""
 
-    # Obtener cliente y modelo
+def extraer_imagen(mensaje):
+
+    palabras = mensaje.split()
+
+    extensiones = [".jpg",".jpeg",".png",".webp",".gif"]
+
+    for p in palabras:
+
+        if any(ext in p for ext in extensiones):
+
+            return p.strip("\"',")
+
+    return None
+
+
+# ==========================================
+# RESPUESTA PRINCIPAL
+# ==========================================
+
+def responder(mensaje_usuario):
+
     cliente, modelo = obtener_cliente()
 
-    # Construir lista de mensajes
-    mensajes = [
-       {"role": "system", "content": PERSONALIDAD}
-    ]
+    mensajes = []
 
-    # Herramienta: visión (tiene prioridad, responde directo)
+    mensajes.append({
+        "role": "system",
+        "content": PERSONALIDAD
+    })
+
+    # ======================================
+    # VISION
+    # ======================================
+
     if necesita_vision(mensaje_usuario):
-        ruta_imagen = extraer_ruta_imagen(mensaje_usuario)
-        if ruta_imagen:
-            print(f"👁️ Analizando imagen: {ruta_imagen}")
-            incrementar("imagenes_analizadas")
-            resultado_vision = analizar_imagen(ruta_imagen, mensaje_usuario, cliente, "meta-llama/llama-4-scout-17b-16e-instruct")
-            agregar_mensaje("user", mensaje_usuario)
-            agregar_mensaje("assistant", resultado_vision)
-            guardar_log("usuario", mensaje_usuario)
-            guardar_log("tenshi", resultado_vision)
-            return resultado_vision
 
-    # Herramienta: buscar en internet
-    if necesita_busqueda(mensaje_usuario):
-        print("🔍 Buscando en internet...")
-        incrementar("busquedas_internet")
-        resultados = buscar_en_internet(mensaje_usuario)
-        mensajes.append({"role": "user", "content": f"Resultados reales de internet:\n\n{resultados}"})
-        mensajes.append({"role": "assistant", "content": "Entendido, usaré esa información para responder."})
+        ruta = extraer_imagen(mensaje_usuario)
 
-    # Herramienta: leer archivo
-    if necesita_leer_archivo(mensaje_usuario):
-        ruta = extraer_ruta(mensaje_usuario)
         if ruta:
-            print(f"📂 Leyendo archivo: {ruta}")
-            incrementar("archivos_leidos")
+
+            print("👁️ Analizando imagen:", ruta)
+
+            resultado = analizar_imagen(
+                ruta,
+                mensaje_usuario,
+                cliente,
+                "meta-llama/llama-4-scout-17b-16e-instruct"
+            )
+
+            agregar_mensaje("user", mensaje_usuario)
+            agregar_mensaje("assistant", resultado)
+
+            incrementar("imagenes_analizadas")
+
+            return resultado
+
+
+    # ======================================
+    # BUSQUEDA INTERNET
+    # ======================================
+
+    if necesita_busqueda(mensaje_usuario):
+
+        print("🔎 búsqueda internet")
+
+        resultados = buscar_en_internet(mensaje_usuario)
+
+        mensajes.append({
+            "role": "system",
+            "content": f"Información encontrada en internet:\n{resultados}"
+        })
+
+        incrementar("busquedas_internet")
+
+
+    # ======================================
+    # LEER ARCHIVO
+    # ======================================
+
+    if necesita_leer_archivo(mensaje_usuario):
+
+        ruta = extraer_ruta(mensaje_usuario)
+
+        if ruta:
+
+            print("📂 leyendo archivo:", ruta)
+
             contenido = leer_archivo(ruta)
-            mensajes.append({"role": "user", "content": contenido})
-            mensajes.append({"role": "assistant", "content": "Entendido, tengo el contenido del archivo."})
 
-    # Agregar historial y mensaje actual con razonamiento
-    mensajes += obtener_historial()
-    mensajes.append({"role": "user", "content": construir_razonamiento(mensaje_usuario)})
+            mensajes.append({
+                "role": "system",
+                "content": f"Contenido del archivo:\n{contenido}"
+            })
 
-    # Llamar a la API
+            incrementar("archivos_leidos")
+
+
+    # ======================================
+    # HISTORIAL
+    # ======================================
+
+    historial = obtener_historial()[-MAX_HISTORY:]
+
+    mensajes += historial
+
+
+    # ======================================
+    # PLAN
+    # ======================================
+
+    plan = construir_plan(mensaje_usuario)
+
+    mensajes.append({
+        "role": "system",
+        "content": f"Estrategia interna:\n{plan}"
+    })
+
+
+    # ======================================
+    # RAZONAMIENTO
+    # ======================================
+
+    mensajes.append({
+        "role": "user",
+        "content": construir_razonamiento(mensaje_usuario)
+    })
+
+
+    # ======================================
+    # LLAMADA AL MODELO
+    # ======================================
+
     respuesta = cliente.chat.completions.create(
+
         model=modelo,
+
         messages=mensajes,
-        max_tokens=MAX_TOKENS,
-        temperature=TEMPERATURA
+
+        max_tokens=MODEL_CONFIG["max_tokens"],
+
+        temperature=MODEL_CONFIG["temperature"]
+
     )
 
-    # Extraer texto
     texto = respuesta.choices[0].message.content
 
-    # Auto-evaluación
-    print("🔎 Auto-evaluando respuesta...")
-    eval_mensajes = [
-        {"role": "system", "content": PERSONALIDAD},
-        {"role": "user", "content": evaluar_respuesta(mensaje_usuario, texto)}
-    ]
-    eval_respuesta = cliente.chat.completions.create(
-        model=modelo,
-        messages=eval_mensajes,
-        max_tokens=MAX_TOKENS,
-        temperature=0.3
-    )
-    eval_texto = eval_respuesta.choices[0].message.content
 
-    if "MEJORAR:" in eval_texto:
-        print("⚡ Mejorando respuesta...")
-        texto = eval_texto.split("MEJORAR:")[-1].strip()
-    elif "APROBADA:" in eval_texto:
-        texto = eval_texto.split("APROBADA:")[-1].strip()
-    else:
-        pass
+    # ======================================
+    # MEMORIA
+    # ======================================
 
-    # Guardar en memoria y log
-    incrementar("mensajes_totales")
     agregar_mensaje("user", mensaje_usuario)
     agregar_mensaje("assistant", texto)
+
     guardar_log("usuario", mensaje_usuario)
     guardar_log("tenshi", texto)
 
-    # Herramienta: ejecutar código
-    if necesita_ejecutar_codigo(mensaje_usuario):
+    incrementar("mensajes_totales")
+
+
+    # ======================================
+    # EJECUTAR CODIGO
+    # ======================================
+
+    if necesita_codigo(mensaje_usuario):
+
         if "```python" in texto:
-            print("🧮 Ejecutando código...")
-            codigo = texto.split("```python")[1].split("```")[0].strip()
+
+            codigo = texto.split("```python")[1].split("```")[0]
+
             resultado = ejecutar_codigo(codigo)
-            print(resultado)
-            texto += f"\n\n{resultado}"
-            agregar_mensaje("assistant", resultado)
-            guardar_log("tenshi", resultado)
 
-    # Herramienta: tarea en segundo plano
-    if necesita_tarea_larga(mensaje_usuario):
-        if "estado de la tarea" in mensaje_usuario.lower():
-            tareas = listar_tareas()
-            if tareas:
-                texto += f"\n\n⚙️ Tareas activas: {tareas}"
-            else:
-                texto += "\n\n⚙️ No hay tareas en segundo plano activas."
-        else:
-            nombre = f"tarea_{int(__import__('time').time())}"
-            ejecutar_en_segundo_plano(nombre, lambda: texto)
-            texto += f"\n\n⚙️ Tarea iniciada en segundo plano: `{nombre}`"
+            texto += f"\n\nResultado ejecución:\n{resultado}"
 
-    # Herramienta: escribir archivo
+            incrementar("codigos_ejecutados")
+
+
+    # ======================================
+    # GUARDAR ARCHIVO
+    # ======================================
+
     if necesita_escribir_archivo(mensaje_usuario):
+
         ruta = extraer_ruta(mensaje_usuario)
+
         if ruta:
-            print(f"💾 Guardando archivo: {ruta}")
+
             escribir_archivo(ruta, texto)
+
+            print("💾 archivo guardado:", ruta)
+
 
     return texto
