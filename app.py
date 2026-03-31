@@ -4,8 +4,10 @@ import streamlit as st
 from modules.orchestrator import responder
 from memory.memory import limpiar_historial
 from memory.stats import obtener_stats
+from modules.autonomy import analizar_y_proponer
 import os
 import glob
+from logs.logger import guardar_log
 
 st.set_page_config(
     page_title="TENSHI · NHRX LABS",
@@ -147,7 +149,28 @@ with col4:
         limpiar_historial()
         st.session_state.mensajes_ui = []
         st.rerun()
+# Sistema de aprobación de propuestas
+if enviar and entrada.strip().upper() in ["SÍ", "SI", "SÌ", "YES"]:
+    if "propuesta_pendiente" in st.session_state:
+        st.session_state.mensajes_ui.append({"rol": "usuario", "texto": entrada})
+        st.session_state.mensajes_ui.append({
+            "rol": "tenshi",
+            "texto": "✅ Propuesta aprobada. La registré en el log y la tendré en cuenta para mejorar. Cuando estés listo, implementamos el cambio juntos."
+        })
+        guardar_log("aprobacion", f"APROBADA: {st.session_state['propuesta_pendiente']}")
+        del st.session_state["propuesta_pendiente"]
+        st.rerun()
 
+if enviar and entrada.strip().upper() in ["NO"]:
+    if "propuesta_pendiente" in st.session_state:
+        st.session_state.mensajes_ui.append({"rol": "usuario", "texto": entrada})
+        st.session_state.mensajes_ui.append({
+            "rol": "tenshi",
+            "texto": "❌ Propuesta rechazada. Entendido, no haré ese cambio."
+        })
+        guardar_log("aprobacion", f"RECHAZADA: {st.session_state['propuesta_pendiente']}")
+        del st.session_state["propuesta_pendiente"]
+        st.rerun()
 # Procesar respuesta
 if enviar and entrada.strip():
     mensaje = entrada
@@ -157,6 +180,16 @@ if enviar and entrada.strip():
     with st.spinner("TENSHI pensando..."):
         respuesta = responder(mensaje)
     st.session_state.mensajes_ui.append({"rol": "tenshi", "texto": respuesta})
+
+    # Autonomía — TENSHI propone mejoras
+    propuesta = analizar_y_proponer()
+    if propuesta:
+        st.session_state["propuesta_pendiente"] = propuesta
+        st.session_state.mensajes_ui.append({
+            "rol": "tenshi",
+            "texto": f"💡 **Propuesta de mejora:**\n\n{propuesta}\n\n¿Apruebas esta mejora? Escribe **SÍ** para implementarla o **NO** para ignorarla."
+        })
+
     st.rerun()
 # Historial de conversaciones
 with st.expander("📅 HISTORIAL DE CONVERSACIONES"):
