@@ -7,6 +7,7 @@ from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
 from logs.logger import guardar_log
 from modules.code_runner import ejecutar_codigo
 from modules.vision import analizar_imagen
+from memory.stats import incrementar
 
 def obtener_cliente():
     """Intenta conectarse a la API disponible."""
@@ -111,6 +112,7 @@ def responder(mensaje_usuario):
         ruta_imagen = extraer_ruta_imagen(mensaje_usuario)
         if ruta_imagen:
             print(f"👁️ Analizando imagen: {ruta_imagen}")
+            incrementar("imagenes_analizadas")
             resultado_vision = analizar_imagen(ruta_imagen, mensaje_usuario, cliente, "meta-llama/llama-4-scout-17b-16e-instruct")
             agregar_mensaje("user", mensaje_usuario)
             agregar_mensaje("assistant", resultado_vision)
@@ -121,6 +123,7 @@ def responder(mensaje_usuario):
     # Herramienta: buscar en internet
     if necesita_busqueda(mensaje_usuario):
         print("🔍 Buscando en internet...")
+        incrementar("busquedas_internet")
         resultados = buscar_en_internet(mensaje_usuario)
         mensajes.append({"role": "user", "content": f"Resultados reales de internet:\n\n{resultados}"})
         mensajes.append({"role": "assistant", "content": "Entendido, usaré esa información para responder."})
@@ -130,6 +133,7 @@ def responder(mensaje_usuario):
         ruta = extraer_ruta(mensaje_usuario)
         if ruta:
             print(f"📂 Leyendo archivo: {ruta}")
+            incrementar("archivos_leidos")
             contenido = leer_archivo(ruta)
             mensajes.append({"role": "user", "content": contenido})
             mensajes.append({"role": "assistant", "content": "Entendido, tengo el contenido del archivo."})
@@ -150,6 +154,7 @@ def responder(mensaje_usuario):
     texto = respuesta.choices[0].message.content
 
     # Guardar en memoria y log
+    incrementar("mensajes_totales")
     agregar_mensaje("user", mensaje_usuario)
     agregar_mensaje("assistant", texto)
     guardar_log("usuario", mensaje_usuario)

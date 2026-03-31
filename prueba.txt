@@ -1,0 +1,6 @@
+Archivo creado: prueba.txt
+
+Contenido del archivo:
+TENSHI funciona perfectamente
+
+✅ Operación exitosa.

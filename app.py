@@ -3,6 +3,7 @@
 import streamlit as st
 from modules.orchestrator import responder
 from memory.memory import limpiar_historial
+from memory.stats import obtener_stats
 
 st.set_page_config(
     page_title="TENSHI · NHRX LABS",
@@ -89,6 +90,16 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Panel de estadísticas
+stats = obtener_stats()
+col_a, col_b, col_c, col_d, col_e = st.columns(5)
+col_a.metric("💬 Mensajes", stats["mensajes_totales"])
+col_b.metric("🔍 Búsquedas", stats["busquedas_internet"])
+col_c.metric("🧮 Códigos", stats["codigos_ejecutados"])
+col_d.metric("👁️ Imágenes", stats["imagenes_analizadas"])
+col_e.metric("📁 Archivos", stats["archivos_leidos"])
+st.markdown("<hr style='border:1px solid rgba(255,255,255,0.06);margin:0 0 16px;'>", unsafe_allow_html=True)
+
 # Inicializar historial visual
 if "mensajes_ui" not in st.session_state:
     st.session_state.mensajes_ui = []
@@ -105,6 +116,18 @@ for msg in st.session_state.mensajes_ui:
     else:
         st.markdown(f'<div class="msg-label-user">TÚ</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="msg-user">{msg["texto"]}</div>', unsafe_allow_html=True)
+
+# Subir imagen
+imagen_subida = st.file_uploader("", type=["jpg", "jpeg", "png", "webp"], label_visibility="collapsed")
+if imagen_subida:
+    ruta_imagen_temp = f"temp_{imagen_subida.name}"
+    with open(ruta_imagen_temp, "wb") as f:
+        f.write(imagen_subida.getbuffer())
+    st.image(imagen_subida, width=200)
+    st.session_state["imagen_path"] = ruta_imagen_temp
+else:
+    if "imagen_path" in st.session_state:
+        del st.session_state["imagen_path"]
 
 # Input
 st.markdown("<br>", unsafe_allow_html=True)
@@ -125,9 +148,12 @@ with col4:
 
 # Procesar respuesta
 if enviar and entrada.strip():
+    mensaje = entrada
+    if "imagen_path" in st.session_state:
+        mensaje = f"{entrada} {st.session_state['imagen_path']}"
     st.session_state.mensajes_ui.append({"rol": "usuario", "texto": entrada})
     with st.spinner("TENSHI pensando..."):
-        respuesta = responder(entrada)
+        respuesta = responder(mensaje)
     st.session_state.mensajes_ui.append({"rol": "tenshi", "texto": respuesta})
     st.rerun()
 
