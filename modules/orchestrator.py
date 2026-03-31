@@ -9,6 +9,7 @@ from modules.code_runner import ejecutar_codigo
 from modules.vision import analizar_imagen
 from memory.stats import incrementar
 from modules.reasoning import construir_razonamiento, evaluar_respuesta
+from modules.background import ejecutar_en_segundo_plano, obtener_estado, listar_tareas
 
 def obtener_cliente():
     """Intenta conectarse a la API disponible."""
@@ -78,6 +79,15 @@ def extraer_ruta_imagen(mensaje):
         if any(ext in palabra.lower() for ext in extensiones):
             return palabra.strip("\"'.,")
     return None
+def necesita_tarea_larga(mensaje):
+    """Detecta si el mensaje requiere una tarea larga en segundo plano."""
+    palabras_clave = [
+        "en segundo plano", "mientras tanto", "sin bloquear",
+        "tarea larga", "procesa esto", "analiza todo",
+        "busca varios", "resume varios", "estado de la tarea"
+    ]
+    mensaje_lower = mensaje.lower()
+    return any(palabra in mensaje_lower for palabra in palabras_clave)
 
 def necesita_escribir_archivo(mensaje):
     """Detecta si el mensaje pide escribir o guardar un archivo."""
@@ -193,6 +203,19 @@ def responder(mensaje_usuario):
             texto += f"\n\n{resultado}"
             agregar_mensaje("assistant", resultado)
             guardar_log("tenshi", resultado)
+
+    # Herramienta: tarea en segundo plano
+    if necesita_tarea_larga(mensaje_usuario):
+        if "estado de la tarea" in mensaje_usuario.lower():
+            tareas = listar_tareas()
+            if tareas:
+                texto += f"\n\n⚙️ Tareas activas: {tareas}"
+            else:
+                texto += "\n\n⚙️ No hay tareas en segundo plano activas."
+        else:
+            nombre = f"tarea_{int(__import__('time').time())}"
+            ejecutar_en_segundo_plano(nombre, lambda: texto)
+            texto += f"\n\n⚙️ Tarea iniciada en segundo plano: `{nombre}`"
 
     # Herramienta: escribir archivo
     if necesita_escribir_archivo(mensaje_usuario):
