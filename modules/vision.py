@@ -1,7 +1,6 @@
 # Módulo de visión de TENSHI
 
 import base64
-from PIL import Image
 import os
 
 def imagen_a_base64(ruta_imagen):

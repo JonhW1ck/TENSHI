@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import os
+from memory.stats import incrementar
 
 def ejecutar_codigo(codigo):
     """Escribe y ejecuta código Python, devuelve el resultado."""
@@ -28,6 +29,8 @@ def ejecutar_codigo(codigo):
 
         # Limpiar archivo temporal
         os.unlink(ruta_temp)
+
+        incrementar("codigos_ejecutados")
 
         if resultado.returncode == 0:
             return f"✅ Resultado:\n{resultado.stdout}"

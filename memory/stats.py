@@ -36,7 +36,7 @@ def _escritura_atomica(ruta: str, data: Dict):
         fd, tmp_path = tempfile.mkstemp(dir=DIR_MEMORIA)
         with os.fdopen(fd, "w", encoding="utf-8") as tmp:
             json.dump(data, tmp, ensure_ascii=False, indent=2)
-        shutil.replace(tmp_path, ruta)
+        os.replace(tmp_path, ruta)
     except Exception as e:
         print("⚠️ error escritura stats:", e)
 

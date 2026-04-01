@@ -156,4 +156,69 @@ def obtener_ultimos(n=10):
     return historial[-n:]
 
 
+# ==========================================
+# 🔔 RECORDATORIOS - PUENTE A DATABASE
+# ==========================================
+
+def revisar_recordatorios():
+    """
+    Revisa recordatorios pendientes periódicamente.
+    Se ejecuta en hilo daemon desde app.py.
+    """
+    import time
+    
+    try:
+        # Importar aquí para evitar circular imports
+        from database.db_manager import obtener_pendientes
+        
+        while True:
+            try:
+                pendientes = obtener_pendientes() or []
+                
+                # Log cada 30 segundos
+                if len(pendientes) > 0:
+                    print(f"🔔 [{datetime.now().strftime('%H:%M:%S')}] {len(pendientes)} pendientes activos")
+                
+                time.sleep(30)
+                
+            except Exception as e:
+                print(f"⚠️ Error revisando pendientes: {e}")
+                time.sleep(30)
+                
+    except Exception as e:
+        print(f"❌ Error en revisar_recordatorios: {e}")
+
+
+def ver_recordatorios():
+    """
+    Retorna un string formateado con los recordatorios actuales.
+    Se llama desde app.py para mostrar en Streamlit.
+    """
+    try:
+        from database.db_manager import obtener_pendientes
+        
+        pendientes = obtener_pendientes() or []
+        
+        if not pendientes:
+            return "📭 No tienes pendientes activos."
+        
+        # Formatear para Streamlit
+        texto = "📋 **Recordatorios Activos:**\n\n"
+        
+        for i, p in enumerate(pendientes, 1):
+            texto_p = p.get("texto", "Sin descripción")
+            fecha_p = p.get("fecha", "Sin fecha")
+            estado_p = p.get("estado", "pendiente")
+            
+            # Emoji según estado
+            emoji = "⏳" if estado_p == "pendiente" else "✅"
+            
+            texto += f"{i}. {emoji} **{texto_p}** ({fecha_p})\n"
+        
+        return texto
+        
+    except Exception as e:
+        return f"❌ Error cargando recordatorios: {e}"
+
+
 print("🔥 recordatorios cargado OK")

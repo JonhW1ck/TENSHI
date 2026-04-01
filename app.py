@@ -12,9 +12,36 @@ from modules.orchestrator import responder
 from modules.autonomy import analizar_y_proponer
 
 from memory.memory import limpiar_historial
-from memory.stats import obtener_stats
+from memory.stats import obtener_stats, incrementar
 
 import recordatorios
+
+
+# ==========================================
+# 🧹 LIMPIAR ARCHIVOS TEMPORALES AL INICIO
+# ==========================================
+
+def limpiar_temp_files():
+    """Limpia archivos temporales de memory/ al iniciar"""
+    try:
+        memory_dir = os.path.join(os.path.dirname(__file__), "memory")
+        for archivo in os.listdir(memory_dir):
+            if archivo.startswith("tmp"):
+                ruta_tmp = os.path.join(memory_dir, archivo)
+                try:
+                    if os.path.isfile(ruta_tmp):
+                        os.remove(ruta_tmp)
+                        print(f"🧹 Eliminado: {archivo}")
+                except Exception as e:
+                    print(f"⚠️ No se pudo eliminar {archivo}: {e}")
+    except Exception as e:
+        print(f"⚠️ Error limpiando temp files: {e}")
+
+
+# Ejecutar una vez al iniciar
+if "temp_cleaned" not in st.session_state:
+    limpiar_temp_files()
+    st.session_state.temp_cleaned = True
 
 
 # ==========================================
@@ -133,7 +160,11 @@ imagen_subida = st.file_uploader(
 
 if imagen_subida:
 
-    ruta = f"temp_{imagen_subida.name}"
+    # Crear carpeta sandbox si no existe
+    sandbox_dir = os.path.join(os.path.dirname(__file__), "sandbox")
+    os.makedirs(sandbox_dir, exist_ok=True)
+
+    ruta = os.path.join(sandbox_dir, imagen_subida.name)
 
     with open(ruta, "wb") as f:
         f.write(imagen_subida.getbuffer())
@@ -141,6 +172,8 @@ if imagen_subida:
     st.image(imagen_subida, width=200)
 
     st.session_state["imagen_path"] = ruta
+    
+    incrementar("imagenes_analizadas")
 
 
 # ==========================================

@@ -8,7 +8,7 @@
 # ==========================================
 
 from groq import Groq
-from config import APIS, MODELOS, PERSONALIDAD
+from config import APIS, MODELOS, PERSONALIDAD, MODEL_CONFIG
 
 from memory.memory import obtener_historial
 from logs.logger import guardar_log

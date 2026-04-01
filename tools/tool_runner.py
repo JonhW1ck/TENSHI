@@ -1,6 +1,7 @@
 # Módulo de herramientas de TENSHI
 
 from ddgs import DDGS
+from memory.stats import incrementar
 
 def buscar_en_internet(query, max_resultados=3):
     """Busca en internet y devuelve los resultados."""
@@ -10,6 +11,8 @@ def buscar_en_internet(query, max_resultados=3):
 
         if not resultados:
             return "No encontré resultados para esa búsqueda."
+
+        incrementar("busquedas_internet")
 
         texto = ""
         for i, r in enumerate(resultados, 1):
@@ -25,6 +28,9 @@ def leer_archivo(ruta):
     try:
         with open(ruta, "r", encoding="utf-8") as f:
             contenido = f.read()
+        
+        incrementar("archivos_leidos")
+        
         return f"Contenido del archivo '{ruta}':\n\n{contenido}"
     except FileNotFoundError:
         return f"No encontré el archivo '{ruta}'."
@@ -36,6 +42,9 @@ def escribir_archivo(ruta, contenido):
     try:
         with open(ruta, "w", encoding="utf-8") as f:
             f.write(contenido)
+        
+        incrementar("archivos_escritos")
+        
         return f"✅ Archivo '{ruta}' guardado correctamente."
     except Exception as e:
         return f"Error al escribir el archivo: {e}"

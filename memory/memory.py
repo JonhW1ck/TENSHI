@@ -48,7 +48,7 @@ def _escritura_atomica(ruta: str, data: Any):
 
                 json.dump(data, tmp, ensure_ascii=False, indent=2)
 
-            shutil.replace(tmp_path, ruta)
+            os.replace(tmp_path, ruta)
 
     except Exception as e:
 
@@ -162,92 +162,14 @@ def limpiar_historial():
 
 
 # ==========================================
-# 📌 PENDIENTES
+# 📌 PENDIENTES - DELEGADO A database/db_manager
 # ==========================================
 
-def _validar_pendientes(data) -> List[Dict[str, Any]]:
-
-    if not isinstance(data, list):
-
-        return []
-
-    limpio = []
-
-    for p in data:
-
-        if isinstance(p, dict):
-
-            limpio.append({
-
-                "texto": str(p.get("texto", "")),
-
-                "fecha": p.get("fecha"),
-
-                "completado": bool(p.get("completado", False))
-
-            })
-
-    return limpio
-
-
-pendientes: List[Dict[str, Any]] = _validar_pendientes(
-    _leer_json_seguro(ARCHIVO_PENDIENTES, [])
-)
-
-
-def guardar_pendientes():
-
-    _escritura_atomica(ARCHIVO_PENDIENTES, pendientes)
-
-
-def agregar_pendiente(texto: str, fecha=None):
-
-    texto = str(texto).strip()
-
-    if not texto:
-
-        return
-
-    nuevo = {
-
-        "texto": texto,
-
-        "fecha": fecha,
-
-        "completado": False
-
-    }
-
-    pendientes.append(nuevo)
-
-    guardar_pendientes()
-
-
-def obtener_pendientes():
-
-    return list(pendientes)
-
-
-def completar_pendiente(index: int):
-
-    if 0 <= index < len(pendientes):
-
-        pendientes[index]["completado"] = True
-
-        guardar_pendientes()
-
-
-def eliminar_pendiente(index: int):
-
-    if 0 <= index < len(pendientes):
-
-        pendientes.pop(index)
-
-        guardar_pendientes()
-
-
-def limpiar_pendientes():
-
-    pendientes.clear()
-
-    guardar_pendientes()
+# ⚠️ IMPORTANTE: Las funciones de pendientes se han movido a:
+# database/db_manager.py
+# 
+# Para mantener consistencia de datos, SIEMPRE usa:
+#   from database.db_manager import agregar_pendiente, obtener_pendientes
+#
+# Este módulo (memory.py) SOLO gestiona el historial de chat
+# Los pendientes son responsabilidad de database/db_manager.py
