@@ -12,7 +12,8 @@ from memory.memory import limpiar_historial
 from memory.stats import obtener_stats
 
 from logs.logger import guardar_log
-
+import threading
+from recordatorios import revisar_recordatorios
 
 # ==========================================
 # CONFIGURACIÓN STREAMLIT
@@ -24,6 +25,23 @@ st.set_page_config(
     layout="centered"
 )
 
+# ==========================================
+# 🔔 ACTIVAR RECORDATORIOS (UNA SOLA VEZ)
+# ==========================================
+
+if "recordatorios_activos" not in st.session_state:
+    st.session_state.recordatorios_activos = False
+
+if not st.session_state.recordatorios_activos:
+
+    hilo_recordatorios = threading.Thread(
+        target=revisar_recordatorios,
+        daemon=True
+    )
+
+    hilo_recordatorios.start()
+
+    st.session_state.recordatorios_activos = True
 
 # ==========================================
 # ESTADO DE SESIÓN

@@ -7,17 +7,15 @@ from memory.memory import (
     agregar_mensaje,
     obtener_historial,
     agregar_pendiente,
-    obtener_pendientes
+    obtener_pendientes,
+    guardar_pendientes
 )
 
 from logs.logger import guardar_log
 from memory.stats import incrementar
 
-from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
-from modules.code_runner import ejecutar_codigo
-from modules.vision import analizar_imagen
-from modules.planner import construir_plan
-from modules.reasoning import construir_razonamiento
+from datetime import datetime, timedelta
+import re
 
 MAX_HISTORY = 8
 
@@ -40,54 +38,106 @@ def obtener_cliente():
 
 
 # ==========================================
-# INTENCIÓN (CEREBRO)
+# DETECCIÓN DE INTENCIÓN
 # ==========================================
 
 def detectar_intencion(mensaje):
     m = mensaje.lower()
 
-    # VIDA REAL
-    if any(p in m for p in ["pendiente","tarea","recuerda","recordar"]):
-        return "memoria"
-
-    if any(p in m for p in ["qué tengo que hacer","mis pendientes","tareas"]):
+    if any(p in m for p in [
+        "qué pendientes tengo","cuales son mis pendientes",
+        "mis pendientes","lista de pendientes","ver pendientes"
+    ]):
         return "consultar_pendientes"
 
-    # SISTEMA
-    if any(ext in m for ext in [".jpg",".png",".jpeg",".webp",".gif"]):
-        return "vision"
-
-    if any(p in m for p in ["busca","investiga","noticias","precio","clima"]):
-        return "internet"
-
-    if any(ext in m for ext in [".txt",".py",".json",".csv",".md"]):
-        if any(p in m for p in ["lee","abre","muestra"]):
-            return "leer_archivo"
-        if any(p in m for p in ["guarda","crear","escribe"]):
-            return "escribir_archivo"
-
-    if any(p in m for p in ["codigo","script","programa","ejecuta"]):
-        return "codigo"
+    if any(p in m for p in [
+        "recuerda","recordar","guarda","anota",
+        "tengo que","no olvides","recuérdame"
+    ]):
+        return "memoria"
 
     return "chat"
 
 
 # ==========================================
-# EXTRACTORES
+# FECHA
 # ==========================================
 
-def extraer_ruta(mensaje):
-    for p in mensaje.split():
-        if any(ext in p for ext in [".txt",".py",".json",".csv",".md"]):
-            return p.strip("\"',")
+def extraer_fecha(mensaje):
+    m = mensaje.lower()
+    hoy = datetime.now()
+
+    if "mañana" in m:
+        return (hoy + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    if "hoy" in m:
+        return hoy.strftime("%Y-%m-%d")
+
+    match = re.search(r"(en|dentro de)\s+(\d+)\s+d[ií]as", m)
+    if match:
+        dias = int(match.group(2))
+        return (hoy + timedelta(days=dias)).strftime("%Y-%m-%d")
+
     return None
 
 
-def extraer_imagen(mensaje):
-    for p in mensaje.split():
-        if any(ext in p for ext in [".jpg",".png",".jpeg",".webp",".gif"]):
-            return p.strip("\"',")
-    return None
+# ==========================================
+# LIMPIAR TEXTO
+# ==========================================
+
+def limpiar_texto(mensaje):
+    texto = mensaje.lower()
+
+    palabras_basura = [
+        "guarda","recuerda","recordar","recuérdame","recuerdame",
+        "anota","apunta","por favor"
+    ]
+
+    for palabra in palabras_basura:
+        texto = texto.replace(palabra, "")
+
+    texto = re.sub(r"\b(hoy|mañana)\b", "", texto)
+    texto = re.sub(r"(en|dentro de)\s+\d+\s+d[ií]as", "", texto)
+    texto = re.sub(r"\d+", "", texto)
+
+    texto = " ".join(texto.split())
+
+    # 🔥 LIMPIEZA EXTRA NATURAL
+    if texto.startswith("que "):
+        texto = texto[4:]
+
+    if texto.startswith("tengo que "):
+        texto = texto[10:]
+
+    return texto.capitalize()
+
+
+# ==========================================
+# EVITAR DUPLICADOS
+# ==========================================
+
+def pendiente_ya_existe(texto, fecha, lista):
+    for p in lista:
+        if p["texto"] == texto and p.get("fecha") == fecha:
+            return True
+    return False
+
+
+def limpiar_duplicados():
+    lista = obtener_pendientes()
+    vistos = set()
+    nueva = []
+
+    for p in lista:
+        clave = (p["texto"], p.get("fecha"))
+        if clave not in vistos:
+            vistos.add(clave)
+            nueva.append(p)
+
+    from memory.memory import pendientes
+    pendientes.clear()
+    pendientes.extend(nueva)
+    guardar_pendientes()
 
 
 # ==========================================
@@ -99,25 +149,45 @@ def responder(mensaje_usuario):
     cliente, modelo = obtener_cliente()
     intencion = detectar_intencion(mensaje_usuario)
 
-    # ======================================
-    # MEMORIA INTELIGENTE
-    # ======================================
+    # ==========================
+    # MEMORIA
+    # ==========================
 
     if intencion == "memoria":
 
-        agregar_pendiente(mensaje_usuario)
+        texto_limpio = limpiar_texto(mensaje_usuario)
+        fecha = extraer_fecha(mensaje_usuario)
+
+        lista = obtener_pendientes()
+
+        if pendiente_ya_existe(texto_limpio, fecha, lista):
+            return "⚠️ Ese pendiente ya existe."
+
+        agregar_pendiente({
+            "texto": texto_limpio,
+            "fecha": fecha,
+            "completado": False
+        })
+
+        limpiar_duplicados()
+
+        agregar_mensaje("user", mensaje_usuario)
 
         respuesta = "📌 Guardado como pendiente."
 
         agregar_mensaje("assistant", respuesta)
-
+        guardar_log("usuario", mensaje_usuario)
         guardar_log("tenshi", respuesta)
 
         return respuesta
 
+    # ==========================
+    # CONSULTAR PENDIENTES
+    # ==========================
 
     if intencion == "consultar_pendientes":
 
+        limpiar_duplicados()
         pendientes = obtener_pendientes()
 
         if not pendientes:
@@ -127,78 +197,24 @@ def responder(mensaje_usuario):
 
         for i, p in enumerate(pendientes, 1):
             estado = "✅" if p.get("completado") else "⏳"
-            texto += f"{i}. {estado} {p['texto']}\n"
+            fecha = f" ({p['fecha']})" if p.get("fecha") else ""
+            texto += f"{i}. {estado} {p['texto']}{fecha}\n"
 
         agregar_mensaje("assistant", texto)
-
         return texto
 
+    # ==========================
+    # IA NORMAL
+    # ==========================
 
-    mensajes = [{"role":"system","content":PERSONALIDAD}]
-
-    # ======================================
-    # EJECUCIÓN DIRECTA
-    # ======================================
-
-    if intencion == "vision":
-        ruta = extraer_imagen(mensaje_usuario)
-        if ruta:
-            resultado = analizar_imagen(
-                ruta,
-                mensaje_usuario,
-                cliente,
-                "meta-llama/llama-4-scout-17b-16e-instruct"
-            )
-            agregar_mensaje("user", mensaje_usuario)
-            agregar_mensaje("assistant", resultado)
-            incrementar("imagenes_analizadas")
-            return resultado
-
-
-    if intencion == "internet":
-        resultados = buscar_en_internet(mensaje_usuario)
-        mensajes.append({"role":"system","content":f"Info:\n{resultados}"})
-        incrementar("busquedas_internet")
-
-
-    if intencion == "leer_archivo":
-        ruta = extraer_ruta(mensaje_usuario)
-        if ruta:
-            contenido = leer_archivo(ruta)
-            mensajes.append({"role":"system","content":contenido})
-            incrementar("archivos_leidos")
-
-
-    # ======================================
-    # HISTORIAL
-    # ======================================
-
+    mensajes = [{"role": "system", "content": PERSONALIDAD}]
     historial = obtener_historial()[-MAX_HISTORY:]
     mensajes += historial
 
-
-    # ======================================
-    # PLAN
-    # ======================================
-
-    if intencion in ["chat","codigo"]:
-        plan = construir_plan(mensaje_usuario)
-        mensajes.append({"role":"system","content":f"Estrategia:\n{plan}"})
-
-
-    # ======================================
-    # RAZONAMIENTO
-    # ======================================
-
     mensajes.append({
-        "role":"user",
-        "content": construir_razonamiento(mensaje_usuario)
+        "role": "user",
+        "content": mensaje_usuario
     })
-
-
-    # ======================================
-    # LLAMADA IA
-    # ======================================
 
     respuesta = cliente.chat.completions.create(
         model=modelo,
@@ -209,11 +225,6 @@ def responder(mensaje_usuario):
 
     texto = respuesta.choices[0].message.content
 
-
-    # ======================================
-    # MEMORIA
-    # ======================================
-
     agregar_mensaje("user", mensaje_usuario)
     agregar_mensaje("assistant", texto)
 
@@ -221,28 +232,5 @@ def responder(mensaje_usuario):
     guardar_log("tenshi", texto)
 
     incrementar("mensajes_totales")
-
-
-    # ======================================
-    # CÓDIGO
-    # ======================================
-
-    if intencion == "codigo" and "```python" in texto:
-        codigo = texto.split("```python")[1].split("```")[0]
-        resultado = ejecutar_codigo(codigo)
-        texto += f"\n\nResultado:\n{resultado}"
-        incrementar("codigos_ejecutados")
-
-
-    # ======================================
-    # ARCHIVO
-    # ======================================
-
-    if intencion == "escribir_archivo":
-        ruta = extraer_ruta(mensaje_usuario)
-        if ruta:
-            escribir_archivo(ruta, texto)
-            print("💾 Guardado:", ruta)
-
 
     return texto
