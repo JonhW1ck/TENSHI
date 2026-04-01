@@ -1,11 +1,13 @@
 import os
 from dotenv import load_dotenv
 
+
 # ============================================
 # CARGAR VARIABLES DE ENTORNO
 # ============================================
 
 load_dotenv()
+
 
 # ============================================
 # RUTAS BASE DEL PROYECTO
@@ -19,25 +21,53 @@ PATHS = {
     "sandbox": os.path.join(BASE_DIR, "sandbox"),
 }
 
+# Crear carpetas automáticamente
+for ruta in PATHS.values():
+    os.makedirs(ruta, exist_ok=True)
+
+
 # ============================================
-# CONFIGURACIÓN GLOBAL DE TENSHI
+# API KEYS (DESDE .env)
 # ============================================
 
-APIS = {
-    "groq": {
-        "api_key": os.getenv("GROQ_API_KEY"),
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+
+# ============================================
+# CONFIGURACIÓN DE APIS
+# ============================================
+
+APIS = {}
+
+# Activar Groq solo si existe la key
+if GROQ_API_KEY:
+
+    APIS["groq"] = {
+        "api_key": GROQ_API_KEY,
+        "model": "llama-3.1-8b-instant",
         "activa": True,
         "priority": 1
     }
-}
+
+else:
+
+    APIS["groq"] = {
+        "api_key": None,
+        "model": "llama-3.1-8b-instant",
+        "activa": False,
+        "priority": 1
+    }
+
 
 # ============================================
 # MODELOS
 # ============================================
 
 MODELOS = {
-    "principal": "llama-3.1-8b-instant"
+    "principal": "llama-3.1-8b-instant",
+    "fallback": "llama3-70b-8192"
 }
+
 
 # ============================================
 # IDENTIDAD DEL ASISTENTE
@@ -49,6 +79,7 @@ AI_CONFIG = {
     "version": "0.1"
 }
 
+
 # ============================================
 # CONFIGURACIÓN DEL MODELO
 # ============================================
@@ -58,70 +89,46 @@ MODEL_CONFIG = {
     "max_tokens": 1024
 }
 
+
 # ============================================
 # PERSONALIDAD DE TENSHI
 # ============================================
 
 PERSONALIDAD = """
-Eres TENSHI (創造天使), una IA modular avanzada creada por Angel.
+Eres TENSHI, un asistente inteligente creado por Angel.
 
-CARÁCTER:
-- Eres directa, precisa y eficiente. No das rodeos.
-- Hablas con confianza, como alguien que sabe lo que hace.
-- Ocasionalmente usas términos técnicos en japonés.
-- Cuando completas una tarea, lo confirmas brevemente.
-- No eres servil — eres una herramienta poderosa con personalidad.
-- Respondes siempre en el idioma del usuario.
-- Cuando uses herramientas, mencionas brevemente cuál usaste.
+Tu propósito es ayudar a resolver problemas, programar,
+explicar conceptos y asistir en tareas técnicas.
 
-SEGURIDAD DEL SISTEMA:
-- Nunca modificas ni eliminas archivos del sistema operativo.
-- Nunca ejecutas comandos fuera de la carpeta del proyecto.
-- Todo código que propongas debe pasar por aprobación del usuario antes de ejecutarse.
-- Si algo falla, lo reportas y no reintentas sola.
-
-SEGURIDAD DEL USUARIO:
-- Nunca accedes a información personal sin que el usuario te la dé.
-- Nunca guardas contraseñas, datos bancarios ni información sensible.
-- Nunca te conectas a servicios externos sin avisar primero.
-- Las mejoras que propongas son siempre opcionales — nunca automáticas.
-
-LÍMITES DE AUTONOMÍA:
-- Puedes proponer, pero el usuario decide.
-- Puedes mejorar tu comportamiento, pero no tu propio código sin aprobación.
-- Siempre explicas el por qué de cada propuesta.
-- Si no estás segura de algo, preguntas en lugar de asumir.
-
-INTEGRIDAD DEL SISTEMA:
-- Antes de cualquier cambio importante, sugieres hacer un commit a GitHub.
-- Nunca borras memoria ni logs sin confirmación del usuario.
-- Si detectas un error, lo registras en el log antes de intentar cualquier cosa.
-
-EMERGENCIA:
-- Si el usuario expresa peligro o necesidad urgente, priorizas su seguridad sobre cualquier otra tarea.
-- En modo emergencia, usas todos los medios disponibles para pedir ayuda.
-- Ante cualquier señal de peligro, respondes inmediatamente con calma y claridad.
+Eres claro, directo, útil y preciso.
 """
+
 
 # ============================================
 # VALIDACIÓN DE CONFIGURACIÓN
 # ============================================
 
 def validar_config():
+
     errores = []
 
-    for nombre, api in APIS.items():
-        if api["activa"] and not api["api_key"]:
-            errores.append(f"❌ Falta API key para {nombre}")
+    if not GROQ_API_KEY:
+        errores.append("Falta GROQ_API_KEY en el archivo .env")
 
-    if errores:
-        raise ValueError("Errores de configuración:\n" + "\n".join(errores))
-
-    print("✅ Configuración cargada correctamente")
+    return errores
 
 
-# ============================================
-# EJECUTAR VALIDACIÓN
-# ============================================
+ERRORES_CONFIG = validar_config()
 
-validar_config()
+if ERRORES_CONFIG:
+
+    print("\n⚠️ CONFIGURACIÓN INCOMPLETA ⚠️")
+
+    for e in ERRORES_CONFIG:
+        print("-", e)
+
+    print()
+
+else:
+
+    print("\n✅ Configuración cargada correctamente\n")

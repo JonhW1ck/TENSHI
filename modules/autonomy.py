@@ -1,68 +1,154 @@
-# Módulo de autonomía de TENSHI
+# ==========================================
+# 🧠 MÓDULO DE AUTONOMÍA DE TENSHI
+# ==========================================
+
+
+# ==========================================
+# 📦 IMPORTS
+# ==========================================
 
 from groq import Groq
-from config import APIS, PERSONALIDAD
+from config import APIS, MODELOS, PERSONALIDAD
+
 from memory.memory import obtener_historial
 from logs.logger import guardar_log
 
+
+# ==========================================
+# 🤖 CLIENTE API
+# ==========================================
+
 def obtener_cliente():
+    """
+    Selecciona una API activa de forma segura.
+    """
+
     for nombre, datos in APIS.items():
-        if datos["activa"]:
+        if datos.get("activa"):
             try:
-                return Groq(api_key=datos["api_key"]), datos["model"]
-            except:
-                pass
-    raise Exception("No hay APIs disponibles.")
+                cliente = Groq(api_key=datos["api_key"])
+                modelo = MODELOS["principal"]
+
+                print(f"🧠 Autonomía usando API: {nombre}")
+
+                return cliente, modelo
+
+            except Exception as e:
+                print(f"❌ Error con {nombre}:", e)
+
+    raise Exception("No hay APIs disponibles para autonomía.")
+
+
+# ==========================================
+# 📊 FORMATEO DE HISTORIAL
+# ==========================================
+
+def formatear_historial(historial):
+    """
+    Convierte historial en texto compacto y seguro.
+    """
+
+    bloques = []
+
+    for m in historial[-10:]:
+        role = m.get("role", "unknown").upper()
+        content = m.get("content", "")
+
+        if not content:
+            continue
+
+        bloques.append(f"{role}: {content[:120]}")
+
+    return "\n".join(bloques)
+
+
+# ==========================================
+# 🧠 ANÁLISIS Y PROPUESTA
+# ==========================================
 
 def analizar_y_proponer():
-    """TENSHI analiza el historial y propone mejoras."""
-    historial = obtener_historial()
+    """
+    TENSHI analiza el historial y propone mejoras del sistema.
+    """
 
-    if len(historial) < 6:
-        return None
+    try:
+        historial = obtener_historial()
 
-    # Solo analiza cada 10 mensajes
-    if len(historial) % 10 != 0:
-        return None
+        # 🔹 Validación mínima
+        if not historial or len(historial) < 6:
+            return None
 
-    cliente, modelo = obtener_cliente()
+        # 🔹 Frecuencia de análisis (cada 10 mensajes)
+        if len(historial) % 10 != 0:
+            return None
 
-    historial_texto = "\n".join([
-        f"{m['role'].upper()}: {m['content'][:100]}"
-        for m in historial[-10:]
-    ])
+        cliente, modelo = obtener_cliente()
 
-    prompt = f"""
-Eres TENSHI. Analiza los últimos mensajes de conversación y determina:
-1. ¿Hay patrones repetitivos que indican una necesidad no cubierta?
-2. ¿Fallaste en alguna tarea? ¿Por qué?
-3. ¿Qué módulo o mejora concreta propondrías?
+        historial_texto = formatear_historial(historial)
 
-Conversación reciente:
+        if not historial_texto:
+            return None
+
+
+        # ======================================
+        # 🧾 PROMPT DE AUTO-MEJORA
+        # ======================================
+
+        prompt = f"""
+Eres TENSHI, un sistema de IA en evolución.
+
+Analiza la conversación reciente y detecta:
+
+1. Necesidades no cubiertas del usuario
+2. Fallos en tus respuestas o comportamiento
+3. Oportunidades de mejora funcional (módulos, lógica, UX)
+
+Conversación:
 {historial_texto}
 
-Si tienes una propuesta concreta, responde con:
-"PROPUESTA: [descripción breve de la mejora]"
-"RAZÓN: [por qué lo propones]"
-"IMPACTO: [qué mejoraría para el usuario]"
+Formato de respuesta:
 
-Si no hay nada relevante que proponer, responde solo: "SIN_PROPUESTA"
+Si hay mejora:
+PROPUESTA: ...
+RAZÓN: ...
+IMPACTO: ...
+
+Si no hay nada relevante:
+SIN_PROPUESTA
 """
 
-    respuesta = cliente.chat.completions.create(
-        model=modelo,
-        messages=[
-            {"role": "system", "content": PERSONALIDAD},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=512,
-        temperature=0.4
-    )
 
-    texto = respuesta.choices[0].message.content.strip()
+        # ======================================
+        # 🤖 LLAMADA AL MODELO
+        # ======================================
 
-    if "SIN_PROPUESTA" in texto:
+        respuesta = cliente.chat.completions.create(
+            model=modelo,
+            messages=[
+                {"role": "system", "content": PERSONALIDAD},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=400,
+            temperature=0.4
+        )
+
+        texto = respuesta.choices[0].message.content.strip()
+
+
+        # ======================================
+        # 📤 VALIDACIÓN DE RESPUESTA
+        # ======================================
+
+        if not texto or "SIN_PROPUESTA" in texto:
+            return None
+
+        if "PROPUESTA" not in texto:
+            return None
+
+        guardar_log("tenshi_autonomia", texto)
+
+        return texto
+
+    except Exception as e:
+        print("⚠️ Error en autonomía:", e)
         return None
-
-    guardar_log("tenshi_autonomia", texto)
-    return texto

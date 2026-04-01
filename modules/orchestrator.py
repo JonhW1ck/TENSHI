@@ -1,236 +1,272 @@
-# Orquestador de TENSHI (CEREBRO REAL)
+# ==========================================
+# 🧠 ORCHESTRATOR DE TENSHI (ROBUSTO v2)
+# ==========================================
 
 from groq import Groq
-from config import APIS, MODELOS, MODEL_CONFIG, PERSONALIDAD
+from config import APIS, PERSONALIDAD
 
-from memory.memory import (
-    agregar_mensaje,
-    obtener_historial,
-    agregar_pendiente,
-    obtener_pendientes,
-    guardar_pendientes
-)
-
+from memory.memory import agregar_mensaje, obtener_historial
 from logs.logger import guardar_log
-from memory.stats import incrementar
 
-from datetime import datetime, timedelta
+from database.db_manager import agregar_pendiente, obtener_pendientes
+
 import re
-
-MAX_HISTORY = 8
+from datetime import datetime
 
 
 # ==========================================
-# CLIENTE API
+# 🔌 CLIENTE IA
 # ==========================================
 
 def obtener_cliente():
+    """
+    Obtiene cliente disponible de IA
+    """
+
     for nombre, datos in APIS.items():
-        if datos["activa"]:
+
+        if datos.get("activa") and datos.get("api_key"):
+
             try:
+
                 cliente = Groq(api_key=datos["api_key"])
-                modelo = MODELOS["principal"]
-                print(f"✅ API: {nombre} | modelo {modelo}")
+
+                modelo = datos.get("model")
+
+                if not modelo:
+                    raise Exception("Modelo no configurado")
+
                 return cliente, modelo
+
             except Exception as e:
-                print(f"❌ {nombre} falló:", e)
-    raise Exception("No hay APIs disponibles")
+
+                print(f"⚠️ Error inicializando API {nombre}: {e}")
+
+    raise Exception("No hay APIs disponibles.")
 
 
 # ==========================================
-# DETECCIÓN DE INTENCIÓN
+# 🧠 DETECCIÓN DE INTENCIÓN
 # ==========================================
 
-def detectar_intencion(mensaje):
-    m = mensaje.lower()
+def detectar_intencion(texto):
 
-    if any(p in m for p in [
-        "qué pendientes tengo","cuales son mis pendientes",
-        "mis pendientes","lista de pendientes","ver pendientes"
-    ]):
-        return "consultar_pendientes"
+    if not texto:
+        return "general"
 
-    if any(p in m for p in [
-        "recuerda","recordar","guarda","anota",
-        "tengo que","no olvides","recuérdame"
-    ]):
+    texto = texto.lower()
+
+    if "recuérdame" in texto or "recuerdame" in texto:
         return "memoria"
 
-    return "chat"
+    if "pendientes" in texto:
+        return "consultar_pendientes"
+
+    return "general"
 
 
 # ==========================================
-# FECHA
+# 🧹 LIMPIAR TEXTO
 # ==========================================
 
-def extraer_fecha(mensaje):
-    m = mensaje.lower()
-    hoy = datetime.now()
+def limpiar_texto(texto):
 
-    if "mañana" in m:
-        return (hoy + timedelta(days=1)).strftime("%Y-%m-%d")
+    texto = texto.lower()
 
-    if "hoy" in m:
-        return hoy.strftime("%Y-%m-%d")
+    texto = re.sub(r"recu[eé]rdame", "", texto)
 
-    match = re.search(r"(en|dentro de)\s+(\d+)\s+d[ií]as", m)
-    if match:
-        dias = int(match.group(2))
-        return (hoy + timedelta(days=dias)).strftime("%Y-%m-%d")
+    texto = texto.strip()
+
+    return texto
+
+
+# ==========================================
+# 📅 EXTRAER FECHA
+# ==========================================
+
+def extraer_fecha(texto):
+
+    texto = texto.lower()
+
+    if "mañana" in texto:
+        return datetime.now().date().isoformat()
 
     return None
 
 
 # ==========================================
-# LIMPIAR TEXTO
-# ==========================================
-
-def limpiar_texto(mensaje):
-    texto = mensaje.lower()
-
-    palabras_basura = [
-        "guarda","recuerda","recordar","recuérdame","recuerdame",
-        "anota","apunta","por favor"
-    ]
-
-    for palabra in palabras_basura:
-        texto = texto.replace(palabra, "")
-
-    texto = re.sub(r"\b(hoy|mañana)\b", "", texto)
-    texto = re.sub(r"(en|dentro de)\s+\d+\s+d[ií]as", "", texto)
-    texto = re.sub(r"\d+", "", texto)
-
-    texto = " ".join(texto.split())
-
-    # 🔥 LIMPIEZA EXTRA NATURAL
-    if texto.startswith("que "):
-        texto = texto[4:]
-
-    if texto.startswith("tengo que "):
-        texto = texto[10:]
-
-    return texto.capitalize()
-
-
-# ==========================================
-# EVITAR DUPLICADOS
+# 🔁 DETECTAR DUPLICADOS
 # ==========================================
 
 def pendiente_ya_existe(texto, fecha, lista):
+
     for p in lista:
-        if p["texto"] == texto and p.get("fecha") == fecha:
+
+        if (
+            p.get("texto") == texto
+            and p.get("fecha") == fecha
+        ):
             return True
+
     return False
 
 
-def limpiar_duplicados():
-    lista = obtener_pendientes()
-    vistos = set()
-    nueva = []
-
-    for p in lista:
-        clave = (p["texto"], p.get("fecha"))
-        if clave not in vistos:
-            vistos.add(clave)
-            nueva.append(p)
-
-    from memory.memory import pendientes
-    pendientes.clear()
-    pendientes.extend(nueva)
-    guardar_pendientes()
-
-
 # ==========================================
-# RESPUESTA PRINCIPAL
+# 🧠 CONSTRUIR MENSAJES PARA IA
 # ==========================================
 
-def responder(mensaje_usuario):
+def construir_mensajes(historial, mensaje_usuario):
 
-    cliente, modelo = obtener_cliente()
-    intencion = detectar_intencion(mensaje_usuario)
+    mensajes = [
+        {
+            "role": "system",
+            "content": PERSONALIDAD
+        }
+    ]
 
-    # ==========================
-    # MEMORIA
-    # ==========================
+    for m in historial:
 
-    if intencion == "memoria":
+        role = m.get("role")
+        content = m.get("content")
 
-        texto_limpio = limpiar_texto(mensaje_usuario)
-        fecha = extraer_fecha(mensaje_usuario)
-
-        lista = obtener_pendientes()
-
-        if pendiente_ya_existe(texto_limpio, fecha, lista):
-            return "⚠️ Ese pendiente ya existe."
-
-        agregar_pendiente({
-            "texto": texto_limpio,
-            "fecha": fecha,
-            "completado": False
-        })
-
-        limpiar_duplicados()
-
-        agregar_mensaje("user", mensaje_usuario)
-
-        respuesta = "📌 Guardado como pendiente."
-
-        agregar_mensaje("assistant", respuesta)
-        guardar_log("usuario", mensaje_usuario)
-        guardar_log("tenshi", respuesta)
-
-        return respuesta
-
-    # ==========================
-    # CONSULTAR PENDIENTES
-    # ==========================
-
-    if intencion == "consultar_pendientes":
-
-        limpiar_duplicados()
-        pendientes = obtener_pendientes()
-
-        if not pendientes:
-            return "📋 No tienes pendientes registrados."
-
-        texto = "📋 Tus pendientes:\n\n"
-
-        for i, p in enumerate(pendientes, 1):
-            estado = "✅" if p.get("completado") else "⏳"
-            fecha = f" ({p['fecha']})" if p.get("fecha") else ""
-            texto += f"{i}. {estado} {p['texto']}{fecha}\n"
-
-        agregar_mensaje("assistant", texto)
-        return texto
-
-    # ==========================
-    # IA NORMAL
-    # ==========================
-
-    mensajes = [{"role": "system", "content": PERSONALIDAD}]
-    historial = obtener_historial()[-MAX_HISTORY:]
-    mensajes += historial
+        if role in ["user", "assistant"] and content:
+            mensajes.append({
+                "role": role,
+                "content": content
+            })
 
     mensajes.append({
         "role": "user",
         "content": mensaje_usuario
     })
 
+    return mensajes
+
+
+# ==========================================
+# 🤖 RESPUESTA IA
+# ==========================================
+
+def generar_respuesta_ia(mensaje_usuario):
+
+    cliente, modelo = obtener_cliente()
+
+    historial = obtener_historial()[-10:]
+
+    mensajes = construir_mensajes(historial, mensaje_usuario)
+
     respuesta = cliente.chat.completions.create(
         model=modelo,
         messages=mensajes,
-        max_tokens=MODEL_CONFIG["max_tokens"],
-        temperature=MODEL_CONFIG["temperature"]
+        max_tokens=512,
+        temperature=0.7
     )
 
-    texto = respuesta.choices[0].message.content
+    try:
 
-    agregar_mensaje("user", mensaje_usuario)
-    agregar_mensaje("assistant", texto)
+        texto = respuesta.choices[0].message.content.strip()
 
-    guardar_log("usuario", mensaje_usuario)
-    guardar_log("tenshi", texto)
+        if not texto:
+            texto = "⚠️ No recibí respuesta del modelo."
 
-    incrementar("mensajes_totales")
+    except Exception:
+
+        texto = "⚠️ Error interpretando respuesta del modelo."
 
     return texto
+
+
+# ==========================================
+# 🧠 RESPUESTA PRINCIPAL
+# ==========================================
+
+def responder(mensaje_usuario):
+
+    try:
+
+        if not mensaje_usuario:
+            return "⚠️ No recibí ningún mensaje."
+
+        # 🔎 detectar intención
+        intencion = detectar_intencion(mensaje_usuario)
+
+        # ==========================================
+        # 📌 GUARDAR PENDIENTE
+        # ==========================================
+
+        if intencion == "memoria":
+
+            texto_limpio = limpiar_texto(mensaje_usuario)
+
+            fecha = extraer_fecha(mensaje_usuario)
+
+            lista = obtener_pendientes() or []
+
+            if pendiente_ya_existe(texto_limpio, fecha, lista):
+
+                return "⚠️ Ese pendiente ya existe."
+
+            agregar_pendiente(texto_limpio, fecha)
+
+            respuesta = "📌 Guardado como pendiente."
+
+            agregar_mensaje("user", mensaje_usuario)
+            agregar_mensaje("assistant", respuesta)
+
+            guardar_log("usuario", mensaje_usuario)
+            guardar_log("tenshi", respuesta)
+
+            return respuesta
+
+
+        # ==========================================
+        # 📋 CONSULTAR PENDIENTES
+        # ==========================================
+
+        if intencion == "consultar_pendientes":
+
+            lista = obtener_pendientes() or []
+
+            if not lista:
+                return "📭 No tienes pendientes."
+
+            respuesta = "📋 Tus pendientes:\n"
+
+            for i, p in enumerate(lista, 1):
+
+                texto = p.get("texto", "Sin descripción")
+                fecha = p.get("fecha", "Sin fecha")
+
+                respuesta += f"{i}. ⏳ {texto} ({fecha})\n"
+
+            guardar_log("usuario", mensaje_usuario)
+            guardar_log("tenshi", respuesta)
+
+            return respuesta
+
+
+        # ==========================================
+        # 🤖 RESPUESTA IA
+        # ==========================================
+
+        texto = generar_respuesta_ia(mensaje_usuario)
+
+        agregar_mensaje("user", mensaje_usuario)
+        agregar_mensaje("assistant", texto)
+
+        guardar_log("usuario", mensaje_usuario)
+        guardar_log("tenshi", texto)
+
+        return texto
+
+
+    except Exception as e:
+
+        import traceback
+
+        print("\n🔥 ERROR REAL TENSHI 🔥")
+        traceback.print_exc()
+        print("MENSAJE:", str(e))
+        print()
+
+        return f"ERROR REAL: {str(e)}"

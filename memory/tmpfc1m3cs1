@@ -1,0 +1,62 @@
+[
+  {
+    "role": "assistant",
+    "content": "📋 Tus pendientes:\n1. ⏳ estudiar matemáticas\n2. ⏳ me comprar alpiste\n3. ⏳ Comprar mañana alpiste\n4. ⏳ Estudiar física\n5. ⏳ Comprar pan\n6. ⏳ Mañana comprar alpiste (2026-04-01)\n7. ⏳ Comprar pan (2026-04-01)\n8. ⏳ Dentro de 3 días pagar internet (2026-04-03)\n9. ⏳ Estudiar\n10. ⏳ Comprar pan mañana (2026-04-01)\n11. ⏳ Comprar pan mañana (2026-04-01)\n12. ⏳ Comprar pan mañana (2026-04-01)\n13. ⏳ Comprar pan mañana (2026-04-01)\n14. ⏳ Dentro de 3 días pagar internet (2026-04-03)\n15. ⏳ Me que tgo que ir con el medico (2026-04-01)\n"
+  },
+  {
+    "role": "user",
+    "content": "recuérdame comprar pan mañana"
+  },
+  {
+    "role": "assistant",
+    "content": "📌 Guardado como pendiente."
+  },
+  {
+    "role": "user",
+    "content": "recuérdame dentro de 3 días pagar internet"
+  },
+  {
+    "role": "assistant",
+    "content": "📌 Guardado como pendiente."
+  },
+  {
+    "role": "user",
+    "content": "recuérdame estudiar"
+  },
+  {
+    "role": "assistant",
+    "content": "📌 Guardado como pendiente."
+  },
+  {
+    "role": "assistant",
+    "content": "📋 Tus pendientes:\n\n1. ⏳ Comprar pan (2026-04-01)\n2. ⏳ S pagar internet (2026-04-03)\n3. ⏳ Estudiar\n"
+  },
+  {
+    "role": "user",
+    "content": "recuérdame comprar pan mañana"
+  },
+  {
+    "role": "assistant",
+    "content": "📌 Guardado como pendiente."
+  },
+  {
+    "role": "user",
+    "content": "recuérdame dentro de 3 días pagar internet"
+  },
+  {
+    "role": "assistant",
+    "content": "📌 Guardado como pendiente."
+  },
+  {
+    "role": "assistant",
+    "content": "📋 Tus pendientes:\n\n1. ⏳ Comprar pan (2026-04-01)\n2. ⏳ Pagar internet (2026-04-03)\n"
+  },
+  {
+    "role": "user",
+    "content": "Hola TENSHI"
+  },
+  {
+    "role": "assistant",
+    "content": "¡Hola! ¿En qué puedo ayudarte hoy?"
+  }
+]
