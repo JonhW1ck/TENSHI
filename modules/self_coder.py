@@ -106,13 +106,28 @@ def guardar_log_mejora(nombre: str, instruccion: str, estado: str):
 def guardar_modulo(nombre: str, codigo: str) -> str:
     ruta = os.path.join(BASE_DIR, "modules", f"{nombre}.py")
     try:
+        # 1. Guardar localmente
         with open(ruta, "w", encoding="utf-8") as f:
             f.write(codigo)
+
+        # 2. Importar dinámicamente
         spec = importlib.util.spec_from_file_location(nombre, ruta)
         modulo = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(modulo)
+
+        # 3. Commit automático a GitHub
+        try:
+            from modules.github_sync import commit_modulo
+            resultado_git = commit_modulo(nombre, codigo)
+            git_msg = resultado_git.get("mensaje", "")
+        except Exception as e:
+            git_msg = f"⚠️ GitHub sync falló: {e}"
+
         guardar_log_mejora(nombre, nombre, "guardado_ok")
-        return f"✅ Módulo '{nombre}.py' creado e importado correctamente."
+        return (
+            f"✅ Módulo '{nombre}.py' creado e importado correctamente.\n"
+            f"{git_msg}"
+        )
     except Exception as e:
         guardar_log_mejora(nombre, nombre, f"error: {str(e)}")
         return f"⚠️ Módulo guardado pero hubo error al importarlo: {e}"
