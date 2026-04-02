@@ -10,5 +10,29 @@
     "nombre": "calculadora_cientifica",
     "instruccion": "calculadora_cientifica",
     "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-01T21:36:50.732554",
+    "nombre": "elementos_periodicos",
+    "instruccion": "prográmate un módulo que dado un símbolo químico devuelva el nombre del elemento, su número atómico y su peso atómico. Incluye los primeros 36 elementos de la tabla periódica como diccionario interno.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-01T21:37:06.454658",
+    "nombre": "elementos_periodicos",
+    "instruccion": "elementos_periodicos",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-01T21:54:19.526451",
+    "nombre": "unidades_ingenieria",
+    "instruccion": "prográmate un módulo que convierta unidades de ingeniería química: presión (Pa, bar, atm, psi), temperatura (°C, °K, °F), masa (kg, g, lb) y caudal (m³/s, L/min, GPM)",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-01T21:54:36.143717",
+    "nombre": "unidades_ingenieria",
+    "instruccion": "unidades_ingenieria",
+    "estado": "guardado_ok"
   }
 ]
