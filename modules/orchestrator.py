@@ -16,6 +16,7 @@ from modules.reasoning import construir_razonamiento, evaluar_respuesta
 from modules.vision import analizar_imagen
 from tools.tool_runner import buscar_en_internet, leer_archivo, escribir_archivo
 from modules.background import ejecutar_en_segundo_plano
+from modules.self_coder import auto_programar
 
 import re
 import os
@@ -97,6 +98,11 @@ def detectar_intencion(texto):
     
     texto_lower = texto.lower()
     
+    # ✅ CONFIRMAR GUARDADO DE MÓDULO AUTO-PROGRAMADO
+    if texto_lower.startswith("confirmar "):
+        print(f"🔎 Intención detectada: CONFIRMAR_MODULO")
+        return "confirmar_modulo"
+
     # 📌 MEMORIA - Guardar pendiente
     palabras_memoria = ["recuérdame", "recuerdame", "recordarme", "guardame", "guarda", "pendiente para"]
     if any(palabra in texto_lower for palabra in palabras_memoria):
@@ -111,6 +117,19 @@ def detectar_intencion(texto):
         print(f"🔎 Intención detectada: CONSULTAR_PENDIENTES")
         return "consultar_pendientes"
     
+    # 🤖 AUTO-PROGRAMACIÓN
+    palabras_autoprog = [
+        "prográmate", "programate", "crea módulo", "crea modulo",
+        "agrégarte", "agregarte", "impleméntate", "implementate",
+        "escríbete", "escribete", "añádete", "anadete",
+        "auto programa", "auto-programa", "genera módulo", "genera modulo",
+        "nueva función", "nueva funcion", "nueva herramienta",
+        "self code", "self-code",
+    ]
+    if any(palabra in texto_lower for palabra in palabras_autoprog):
+        print(f"🔎 Intención detectada: AUTOPROGRAMACION")
+        return "autoprogramacion"
+
     # 🔍 BÚSQUEDAS
     palabras_busqueda = ["busca", "buscar", "internet", "noticias", "precio", "actualmente",
                         "qué es", "que es", "explica", "define", "wikipedia"]
@@ -342,6 +361,88 @@ def responder(mensaje_usuario):
             guardar_log("tenshi", respuesta)
 
             print(f"📤 RESPUESTA: {respuesta}\n")
+            return respuesta
+
+        # ==========================================
+        # ✅ CONFIRMAR MÓDULO AUTO-PROGRAMADO
+        # ==========================================
+
+        if intencion == "confirmar_modulo":
+
+            print(f"\n✅ Procesando: CONFIRMAR MÓDULO")
+            import json as _json, os as _os, glob as _glob
+
+            nombre_pedido = mensaje_usuario.lower().replace("confirmar", "").strip()
+            patron = _os.path.join(_os.path.dirname(__file__), "..", "logs", f"_pending_{nombre_pedido}.json")
+            candidatos = _glob.glob(patron)
+
+            if not candidatos:
+                # Buscar cualquier pendiente
+                candidatos = _glob.glob(
+                    _os.path.join(_os.path.dirname(__file__), "..", "logs", "_pending_*.json")
+                )
+
+            if candidatos:
+                with open(candidatos[0], "r", encoding="utf-8") as _f:
+                    resultado = _json.load(_f)
+                nombre = resultado.get("nombre", "modulo_nuevo")
+                codigo = resultado.get("codigo", "")
+                from modules.self_coder import confirmar_guardado
+                respuesta = confirmar_guardado(nombre, codigo)
+                _os.remove(candidatos[0])
+            else:
+                respuesta = "⚠️ No encontré ningún módulo pendiente de confirmar."
+
+            agregar_mensaje("user", mensaje_usuario)
+            agregar_mensaje("assistant", respuesta)
+            guardar_log("usuario", mensaje_usuario)
+            guardar_log("tenshi", respuesta)
+            return respuesta
+
+        # ==========================================
+        # 🤖 AUTO-PROGRAMACIÓN
+        # ==========================================
+
+        if intencion == "autoprogramacion":
+
+            print(f"\n🤖 Procesando: AUTO-PROGRAMACIÓN")
+
+            try:
+                resultado = auto_programar(mensaje_usuario)
+
+                nombre = resultado.get("nombre", "módulo_nuevo")
+                codigo = resultado.get("codigo", "")
+                pendiente = resultado.get("pendiente_confirmacion", False)
+                error = resultado.get("error", "")
+
+                if error and nombre == "error":
+                    respuesta = f"❌ Error al auto-programarme: {error}"
+                elif pendiente:
+                    # Mostrar código generado y pedir confirmación
+                    respuesta = (
+                        f"🤖 **Módulo generado:** `{nombre}.py`\n\n"
+                        f"```python\n{codigo[:800]}{'...' if len(codigo) > 800 else ''}\n```\n\n"
+                        f"¿Confirmas que lo guarde? Escribe: **confirmar {nombre}**"
+                    )
+                    # Guardar en session_state temporal via st no es posible aquí,
+                    # así que guardamos en un archivo temporal
+                    import tempfile, json as _json, os as _os
+                    tmp_path = _os.path.join(_os.path.dirname(__file__), "..", "logs", f"_pending_{nombre}.json")
+                    with open(tmp_path, "w", encoding="utf-8") as _f:
+                        _json.dump(resultado, _f, ensure_ascii=False, indent=2)
+                else:
+                    respuesta = f"❌ Resultado inesperado del auto-programador."
+
+                incrementar("autoprogramaciones")
+
+            except Exception as e:
+                respuesta = f"❌ Error en auto-programación: {e}"
+
+            agregar_mensaje("user", mensaje_usuario)
+            agregar_mensaje("assistant", respuesta)
+            guardar_log("usuario", mensaje_usuario)
+            guardar_log("tenshi", respuesta)
+            print(f"✅ RESPUESTA AUTO-PROG: {respuesta[:100]}...\n")
             return respuesta
 
         # ==========================================

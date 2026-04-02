@@ -119,19 +119,21 @@ try:
     stats = obtener_stats()
 except Exception:
     stats = {
-        "mensajes_totales": 0,
-        "busquedas_internet": 0,
-        "codigos_ejecutados": 0,
+        "mensajes_totales":    0,
+        "busquedas_internet":  0,
+        "codigos_ejecutados":  0,
         "imagenes_analizadas": 0,
-        "archivos_leidos": 0
+        "archivos_leidos":     0,
+        "autoprogramaciones":  0,
     }
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("💬 Mensajes", stats.get("mensajes_totales", 0))
-col2.metric("🔍 Búsquedas", stats.get("busquedas_internet", 0))
-col3.metric("🧮 Código", stats.get("codigos_ejecutados", 0))
-col4.metric("👁️ Imágenes", stats.get("imagenes_analizadas", 0))
-col5.metric("📁 Archivos", stats.get("archivos_leidos", 0))
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1.metric("💬 Mensajes",  stats.get("mensajes_totales",    0))
+col2.metric("🔍 Búsquedas", stats.get("busquedas_internet",  0))
+col3.metric("🧮 Código",    stats.get("codigos_ejecutados",  0))
+col4.metric("👁️ Imágenes",  stats.get("imagenes_analizadas", 0))
+col5.metric("📁 Archivos",  stats.get("archivos_leidos",     0))
+col6.metric("🤖 AutoProg",  stats.get("autoprogramaciones",  0))
 st.markdown("<hr>", unsafe_allow_html=True)
 
 
