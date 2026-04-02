@@ -58,5 +58,107 @@
     "nombre": "formulas_gestor",
     "instruccion": "formulas_gestor",
     "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T15:50:10.094157",
+    "nombre": "balanceador_ecuaciones",
+    "instruccion": "prográmate un módulo que balancea ecuaciones químicas simples por el método algebraico. Recibe una ecuación como texto en formato \"H2 + O2 -> H2O\" y devuelve los coeficientes balanceados. Incluye ejemplos de prueba con al menos 3 ecuaciones conocidas.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T15:55:09.493614",
+    "nombre": "mezcla_liquida",
+    "instruccion": "prográmate un módulo que calcule propiedades de mezclas líquidas binarias. Que calcule: densidad de la mezcla por regla de mezcla, viscosidad dinámica por correlación logarítmica, y calor específico por regla de mezcla ponderada. Recibe fracción másica, densidad, viscosidad y cp de cada componente puro.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T15:55:54.553979",
+    "nombre": "mezcla_liquida",
+    "instruccion": "mezcla_liquida",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T15:56:39.415278",
+    "nombre": "columna_absorcion",
+    "instruccion": "prográmate un módulo que calcule una columna de absorción de forma simplificada. Que reciba: caudal de gas G, caudal de líquido L, concentración entrada y salida del gas, concentración entrada del líquido, y coeficiente global KGa. Que calcule: NOG por integración trapezoidal, HTU, altura total de la columna ZT, y razón de absorción. Sin Streamlit, solo funciones puras.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T15:57:34.678997",
+    "nombre": "columna_de_absorcion",
+    "instruccion": "prográmate un módulo de columna de absorción con las fórmulas correctas: HTU = G dividido entre KGa, NOG calculado por integración trapezoidal con al menos 100 puntos entre y_entrada y y_salida usando la función 1 dividido entre y menos y_estrella donde y_estrella es la concentración de equilibrio, ZT igual a NOG multiplicado por HTU, y razón de absorción igual a L dividido entre m por G donde m es la pendiente de equilibrio.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T15:58:15.615753",
+    "nombre": "columna_de_absorcion",
+    "instruccion": "columna_de_absorcion",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T15:58:50.025198",
+    "nombre": "analizador_datos",
+    "instruccion": "prográmate un módulo que analice datos experimentales de laboratorio. Que reciba una lista de valores numéricos y calcule: promedio, mediana, desviación estándar, varianza, valor máximo y mínimo, y rango. También que haga regresión lineal simple recibiendo dos listas x e y, y devuelva la pendiente, intercepto y coeficiente R². Sin librerías externas, solo math.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T15:59:23.454880",
+    "nombre": "analizador_datos",
+    "instruccion": "analizador_datos",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T16:00:05.371569",
+    "nombre": "resumidor_texto",
+    "instruccion": "prográmate un módulo que resuma textos largos y los almacene con clasificación automática. Que tenga funciones para: resumir un texto recibido en bullets clave usando las primeras oraciones más importantes; guardar el resumen con un tema, categoría provisional y fecha en un archivo JSON llamado conocimiento.json dentro de la carpeta memory; listar todo lo guardado; y buscar por tema o categoría.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T16:00:47.053216",
+    "nombre": "resumidor_texto",
+    "instruccion": "resumidor_texto",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T16:05:34.934930",
+    "nombre": "flashcard_generator",
+    "instruccion": "prográmate un módulo generador de flashcards para estudiar. Que tenga funciones para: crear una flashcard con pregunta, respuesta y tema; guardar todas las flashcards en un archivo JSON llamado flashcards.json dentro de la carpeta memory; obtener una flashcard aleatoria; obtener todas las flashcards de un tema específico; y listar todos los temas disponibles.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T16:06:17.147779",
+    "nombre": "flashcard_generator",
+    "instruccion": "flashcard_generator",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T16:06:42.761748",
+    "nombre": "agenda_semanal",
+    "instruccion": "prográmate un módulo de agenda semanal. Que tenga funciones para: agregar un evento con día de la semana, hora, materia o actividad y tipo (clase, tarea, examen); listar todos los eventos de un día específico; listar toda la semana ordenada por día y hora; eliminar un evento por índice; y guardar todo en un archivo JSON llamado agenda.json dentro de la carpeta memory.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T16:07:26.154554",
+    "nombre": "agenda_semanal",
+    "instruccion": "agenda_semanal",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T16:08:04.315337",
+    "nombre": "tenshi_menu",
+    "instruccion": "prográmate un módulo de menú de comandos unificado que conecte todos los módulos existentes de TENSHI. Que reconozca comandos cortos como: /tabla H para buscar un elemento, /convertir 1 atm a bar, /constante R para buscar una constante, /formula guardar o /formula listar, /flashcard nueva o /flashcard aleatoria, /agenda agregar o /agenda semana, /analizar para estadísticas de una lista de números. Que devuelva la respuesta del módulo correspondiente según el comando recibido.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T16:09:08.662610",
+    "nombre": "menu_unificado",
+    "instruccion": "prográmate un módulo de menú de comandos unificado. Que tenga una función ejecutar_comando(texto) que reciba un string y según el comando devuelva una respuesta. Comandos: /tabla seguido de símbolo, /convertir seguido de valor unidad_origen a unidad_destino, /flashcard aleatoria, /agenda semana, /analizar seguido de números separados por comas. No importes módulos externos, solo implementa la lógica de parseo de comandos y devuelve strings descriptivos de lo que haría cada comando.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T16:09:43.264915",
+    "nombre": "menu_unificado",
+    "instruccion": "menu_unificado",
+    "estado": "guardado_ok"
   }
 ]
