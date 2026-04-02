@@ -34,5 +34,29 @@
     "nombre": "unidades_ingenieria",
     "instruccion": "unidades_ingenieria",
     "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T12:09:35.946789",
+    "nombre": "constantes_fisicas",
+    "instruccion": "prográmate un módulo que devuelva constantes físicas y termodinámicas de ingeniería. Incluye: constante de gas ideal R (en J/mol·K, cal/mol·K, L·atm/mol·K), gravedad g, número de Avogadro NA, constante de Boltzmann kB, constante de Stefan-Boltzmann σ, y permitividad del vacío. Cada constante debe tener su valor, unidades y descripción corta.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T12:14:25.645520",
+    "nombre": "constantes_fisicas",
+    "instruccion": "constantes_fisicas",
+    "estado": "guardado_ok"
+  },
+  {
+    "fecha": "2026-04-02T15:46:29.562211",
+    "nombre": "formulas_gestor",
+    "instruccion": "prográmate un módulo de gestor de fórmulas personales. Que tenga funciones para: guardar una fórmula con su nombre, descripción y categoría; buscar fórmulas por nombre o categoría; listar todas las fórmulas guardadas; y eliminar una fórmula por nombre. Guarda todo en un archivo JSON llamado formulas.json dentro de la carpeta memory.",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-02T15:47:22.014151",
+    "nombre": "formulas_gestor",
+    "instruccion": "formulas_gestor",
+    "estado": "guardado_ok"
   }
 ]

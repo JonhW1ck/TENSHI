@@ -1,5 +1,5 @@
 # ==========================================
-# 🧠 ORCHESTRATOR DE TENSHI (ROBUSTO v2)
+# 🧠 ORCHESTRATOR DE TENSHI (ROBUSTO v3)
 # ==========================================
 
 from groq import Groq
@@ -20,6 +20,8 @@ from modules.self_coder import auto_programar
 
 import re
 import os
+import json as _json
+import glob as _glob
 from datetime import datetime, timedelta
 
 
@@ -28,96 +30,53 @@ from datetime import datetime, timedelta
 # ==========================================
 
 def limpiar_texto(texto):
-    """
-    Elimina palabras clave y frases comunes al guardar pendientes.
-    Ejemplo: 'recuérdame que mañana tengo que comprar pan' → 'comprar pan'
-    """
-    
     if not texto:
         return ""
-    
     texto_limpio = texto.lower().strip()
-    
-    # Lista completa de palabras y frases a eliminar
     palabras_clave = [
-        # Verbos principales
-        r"recuérdame\s*",
-        r"recuerda\s+me\s*",
-        r"recordarme\s*",
-        r"guardame\s*",
-        r"guarda\s+me\s*",
-        r"guarda\s*",
-        r"que\s+me\s+guarde\s*",
-        # Palabras temporales (pero SIN "mañana" - se maneja aparte)
-        r"que\s+mañana\s*",
-        r"para\s+mañana\s*",
-        # Palabras conectivas
-        r"que\s+tengo\s+que\s*",
-        r"que\s+",
-        r"tengo\s+que\s*",
-        # Al inicio
-        r"^para\s+",
-        r"^necesito\s+",
+        r"recuérdame\s*", r"recuerda\s+me\s*", r"recordarme\s*",
+        r"guardame\s*", r"guarda\s+me\s*", r"guarda\s*",
+        r"que\s+me\s+guarde\s*", r"que\s+mañana\s*", r"para\s+mañana\s*",
+        r"que\s+tengo\s+que\s*", r"que\s+", r"tengo\s+que\s*",
+        r"^para\s+", r"^necesito\s+",
     ]
-    
     for patron in palabras_clave:
         texto_limpio = re.sub(patron, "", texto_limpio, flags=re.IGNORECASE).strip()
-    
-    # Remover "mañana" solo si está al final
     texto_limpio = re.sub(r"\s*mañana\s*$", "", texto_limpio).strip()
-    
-    # Limpiar espacios múltiples
     texto_limpio = re.sub(r"\s+", " ", texto_limpio).strip()
-    
     return texto_limpio
 
 
 def textos_similares(texto1, texto2):
-    """
-    Verifica si dos textos son similares usando substring matching.
-    Retorna True si uno está contenido en el otro o son iguales.
-    """
     t1 = texto1.lower().strip()
     t2 = texto2.lower().strip()
-    
     return t1 == t2 or t1 in t2 or t2 in t1
 
 
 # ==========================================
-# 🔎 DETECCIÓN DE INTENCIÓN (MEJORADA)
+# 🔎 DETECCIÓN DE INTENCIÓN
+# Orden de prioridad (de mayor a menor):
+#   1. confirmar_modulo
+#   2. autoprogramacion   ← ANTES que memoria para evitar falsos positivos
+#   3. memoria
+#   4. consultar_pendientes
+#   5. busqueda
+#   6. general
 # ==========================================
 
 def detectar_intencion(texto):
-    """
-    Detecta la intención del usuario con múltiples palabras clave.
-    Retorna: 'memoria', 'consultar_pendientes', 'busqueda' o 'general'
-    """
-    
     if not texto:
         return "general"
-    
+
     texto_lower = texto.lower()
-    
-    # ✅ CONFIRMAR GUARDADO DE MÓDULO AUTO-PROGRAMADO
+
+    # 1️⃣ CONFIRMAR MÓDULO — siempre primero
     if texto_lower.startswith("confirmar "):
-        print(f"🔎 Intención detectada: CONFIRMAR_MODULO")
+        print("🔎 Intención detectada: CONFIRMAR_MODULO")
         return "confirmar_modulo"
 
-    # 📌 MEMORIA - Guardar pendiente
-    palabras_memoria = ["recuérdame", "recuerdame", "recordarme", "guardame", "guarda", "pendiente para"]
-    if any(palabra in texto_lower for palabra in palabras_memoria):
-        print(f"🔎 Intención detectada: MEMORIA")
-        return "memoria"
-    
-    # 📋 CONSULTAR PENDIENTES - Leer pendientes
-    palabras_pendientes = ["pendientes", "qué pendientes", "mis pendientes", "qué tengo pendiente",
-                          "lista de pendientes", "cuales son", "cuales son mis", "tengo pendiente",
-                          "qué me falta", "que falta", "tareas"]
-    if any(palabra in texto_lower for palabra in palabras_pendientes):
-        print(f"🔎 Intención detectada: CONSULTAR_PENDIENTES")
-        return "consultar_pendientes"
-    
-    # 🤖 AUTO-PROGRAMACIÓN
+    # 2️⃣ AUTO-PROGRAMACIÓN — antes que memoria para evitar que
+    #    palabras como "guarda" en el prompt disparen la rama equivocada
     palabras_autoprog = [
         "prográmate", "programate", "crea módulo", "crea modulo",
         "agrégarte", "agregarte", "impleméntate", "implementate",
@@ -126,18 +85,40 @@ def detectar_intencion(texto):
         "nueva función", "nueva funcion", "nueva herramienta",
         "self code", "self-code",
     ]
-    if any(palabra in texto_lower for palabra in palabras_autoprog):
-        print(f"🔎 Intención detectada: AUTOPROGRAMACION")
+    if any(p in texto_lower for p in palabras_autoprog):
+        print("🔎 Intención detectada: AUTOPROGRAMACION")
         return "autoprogramacion"
 
-    # 🔍 BÚSQUEDAS
-    palabras_busqueda = ["busca", "buscar", "internet", "noticias", "precio", "actualmente",
-                        "qué es", "que es", "explica", "define", "wikipedia"]
-    if any(palabra in texto_lower for palabra in palabras_busqueda):
-        print(f"🔎 Intención detectada: BUSQUEDA")
+    # 3️⃣ MEMORIA — guardar pendiente
+    palabras_memoria = [
+        "recuérdame", "recuerdame", "recordarme",
+        "guardame", "guarda", "pendiente para"
+    ]
+    if any(p in texto_lower for p in palabras_memoria):
+        print("🔎 Intención detectada: MEMORIA")
+        return "memoria"
+
+    # 4️⃣ CONSULTAR PENDIENTES
+    palabras_pendientes = [
+        "pendientes", "qué pendientes", "mis pendientes",
+        "qué tengo pendiente", "lista de pendientes", "cuales son",
+        "cuales son mis", "tengo pendiente", "qué me falta",
+        "que falta", "tareas"
+    ]
+    if any(p in texto_lower for p in palabras_pendientes):
+        print("🔎 Intención detectada: CONSULTAR_PENDIENTES")
+        return "consultar_pendientes"
+
+    # 5️⃣ BÚSQUEDA
+    palabras_busqueda = [
+        "busca", "buscar", "internet", "noticias", "precio",
+        "actualmente", "qué es", "que es", "explica", "define", "wikipedia"
+    ]
+    if any(p in texto_lower for p in palabras_busqueda):
+        print("🔎 Intención detectada: BUSQUEDA")
         return "busqueda"
-    
-    print(f"🔎 Intención detectada: GENERAL")
+
+    print("🔎 Intención detectada: GENERAL")
     return "general"
 
 
@@ -146,92 +127,53 @@ def detectar_intencion(texto):
 # ==========================================
 
 def obtener_cliente():
-    """
-    Obtiene cliente disponible de IA
-    """
-
     for nombre, datos in APIS.items():
-
         if datos.get("activa") and datos.get("api_key"):
-
             try:
-
                 cliente = Groq(api_key=datos["api_key"])
-
                 modelo = datos.get("model")
-
                 if not modelo:
                     raise Exception("Modelo no configurado")
-
                 return cliente, modelo
-
             except Exception as e:
-
                 print(f"⚠️ Error inicializando API {nombre}: {e}")
-
     raise Exception("No hay APIs disponibles.")
 
 
 # ==========================================
-#  RESPUESTA IA
+# 🤖 RESPUESTA IA
 # ==========================================
 
 def generar_respuesta_ia(mensaje_usuario, cliente, modelo):
-
     historial = obtener_historial()[-10:]
-
-    mensajes = [
-        {
-            "role": "system",
-            "content": PERSONALIDAD
-        }
-    ]
-
+    mensajes = [{"role": "system", "content": PERSONALIDAD}]
     for m in historial:
-
         role = m.get("role")
         content = m.get("content")
-
         if role in ["user", "assistant"] and content:
-            mensajes.append({
-                "role": role,
-                "content": content
-            })
-
-    mensajes.append({
-        "role": "user",
-        "content": mensaje_usuario
-    })
-
+            mensajes.append({"role": role, "content": content})
+    mensajes.append({"role": "user", "content": mensaje_usuario})
     respuesta = cliente.chat.completions.create(
         model=modelo,
         messages=mensajes,
         max_tokens=MODEL_CONFIG.get("max_tokens", 512),
         temperature=MODEL_CONFIG.get("temperature", 0.7)
     )
-
     try:
-
         texto = respuesta.choices[0].message.content.strip()
-
         if not texto:
             texto = "⚠️ No recibí respuesta del modelo."
-
     except Exception:
-
         texto = "⚠️ Error interpretando respuesta del modelo."
-
     return texto
 
 
 # ==========================================
-# 🤖 RESPUESTA PRINCIPAL (MEJORADA)
+# 🚀 RESPUESTA PRINCIPAL
 # ==========================================
 
 def responder(mensaje_usuario):
-
     try:
-
         if not mensaje_usuario:
             return "⚠️ No recibí ningún mensaje."
 
@@ -239,25 +181,18 @@ def responder(mensaje_usuario):
         print(f"📥 MENSAJE: {mensaje_usuario}")
         print(f"{'='*60}")
 
-        # 📊 Incrementar stats
         incrementar("mensajes_totales")
 
-        # 🔎 Detectar intención MEJORADA
         intencion = detectar_intencion(mensaje_usuario)
         print(f"✅ Intención: {intencion}")
 
-        # 🧾 Construir plan de respuesta
         plan = construir_plan(mensaje_usuario)
         print(f"📋 Plan: {plan}")
 
-        # ==========================================
-        # 👁️ DETECTAR Y ANALIZAR IMÁGENES
-        # ==========================================
-        
+        # ── Detectar imagen adjunta ──────────────────────────────
         imagen_path = None
         if "temp_" in mensaje_usuario or "sandbox" in mensaje_usuario:
-            partes = mensaje_usuario.split()
-            for parte in partes:
+            for parte in mensaje_usuario.split():
                 if parte.startswith("temp_") or "sandbox" in parte:
                     imagen_path = parte
                     mensaje_usuario = mensaje_usuario.replace(f" {imagen_path}", "").strip()
@@ -265,131 +200,28 @@ def responder(mensaje_usuario):
                     break
 
         # ==========================================
-        # 📌 GUARDAR PENDIENTE
+        # 1️⃣ CONFIRMAR MÓDULO
         # ==========================================
-        
-        if intencion == "memoria":
-            
-            print(f"\n🔄 Procesando: GUARDAR PENDIENTE")
-
-            # 🧹 Limpiar texto de palabras clave
-            texto_limpio = limpiar_texto(mensaje_usuario)
-            print(f"   Texto limpiado: '{texto_limpio}'")
-
-            # 📅 Detectar fecha (mañana o hoy)
-            fecha = None
-            if "mañana" in mensaje_usuario.lower():
-                fecha = (datetime.now().date() + timedelta(days=1)).isoformat()
-                print(f"   Fecha: {fecha} (MAÑANA)")
-            else:
-                print(f"   Fecha: Sin especificar (HOY)")
-
-            # ⚠️ IMPORTANTE: Leer SIEMPRE de db_manager
-            lista = obtener_pendientes() or []
-            print(f"   Pendientes actuales en DB: {len(lista)}")
-            for p in lista:
-                print(f"      - {p.get('texto')} | {p.get('fecha')}")
-
-            # 🔍 Verificar duplicados con matching inteligente
-            ya_existe = False
-            for p in lista:
-                if textos_similares(p.get("texto"), texto_limpio):
-                    ya_existe = True
-                    print(f"   ⚠️ DUPLICADO DETECTADO: '{p.get('texto')}'")
-                    break
-
-            if ya_existe:
-                respuesta = "⚠️ Ya tienes ese pendiente."
-            else:
-                agregar_pendiente(texto_limpio, fecha)
-                print(f"   ✅ GUARDADO EN DB")
-                
-                # Verificar que se guardó
-                lista_nueva = obtener_pendientes() or []
-                print(f"   Pendientes DESPUÉS de guardar: {len(lista_nueva)}")
-                for p in lista_nueva:
-                    print(f"      - {p.get('texto')} | {p.get('fecha')}")
-                
-                respuesta = "📌 Guardado como pendiente."
-
-            agregar_mensaje("user", mensaje_usuario)
-            agregar_mensaje("assistant", respuesta)
-
-            guardar_log("usuario", mensaje_usuario)
-            guardar_log("tenshi", respuesta)
-
-            print(f"📤 RESPUESTA: {respuesta}\n")
-            return respuesta
-
-        # ==========================================
-        # 📋 CONSULTAR PENDIENTES
-        # ==========================================
-
-        if intencion == "consultar_pendientes":
-            
-            print(f"\n🔄 Procesando: CONSULTAR PENDIENTES")
-
-            # ⚠️ IMPORTANTE: Leer SIEMPRE de db_manager
-            lista = obtener_pendientes() or []
-            
-            print(f"   📂 Leyendo de: database/db_manager.py")
-            print(f"   📊 Total de pendientes encontrados: {len(lista)}")
-            
-            for i, p in enumerate(lista, 1):
-                print(f"      {i}. {p.get('texto')} | Estado: {p.get('estado')} | Fecha: {p.get('fecha')}")
-
-            if not lista:
-                respuesta = "📭 No tienes pendientes."
-                print(f"   ⚠️ LISTA VACÍA")
-            else:
-                respuesta = "📋 **Tus pendientes:**\n\n"
-
-                for i, p in enumerate(lista, 1):
-                    texto = p.get("texto", "Sin descripción")
-                    fecha = p.get("fecha", "Sin fecha")
-                    estado = p.get("estado", "pendiente")
-                    
-                    emoji = "⏳" if estado == "pendiente" else "✅"
-                    respuesta += f"{i}. {emoji} **{texto}** ({fecha})\n"
-                
-                print(f"   ✅ FORMATEADO PARA USUARIO")
-
-            agregar_mensaje("user", mensaje_usuario)
-            agregar_mensaje("assistant", respuesta)
-
-            guardar_log("usuario", mensaje_usuario)
-            guardar_log("tenshi", respuesta)
-
-            print(f"📤 RESPUESTA: {respuesta}\n")
-            return respuesta
-
-        # ==========================================
-        # ✅ CONFIRMAR MÓDULO AUTO-PROGRAMADO
-        # ==========================================
-
         if intencion == "confirmar_modulo":
-
-            print(f"\n✅ Procesando: CONFIRMAR MÓDULO")
-            import json as _json, os as _os, glob as _glob
+            print("\n✅ Procesando: CONFIRMAR MÓDULO")
 
             nombre_pedido = mensaje_usuario.lower().replace("confirmar", "").strip()
-            patron = _os.path.join(_os.path.dirname(__file__), "..", "logs", f"_pending_{nombre_pedido}.json")
+            patron = os.path.join(os.path.dirname(__file__), "..", "logs", f"_pending_{nombre_pedido}.json")
             candidatos = _glob.glob(patron)
 
             if not candidatos:
-                # Buscar cualquier pendiente
                 candidatos = _glob.glob(
-                    _os.path.join(_os.path.dirname(__file__), "..", "logs", "_pending_*.json")
+                    os.path.join(os.path.dirname(__file__), "..", "logs", "_pending_*.json")
                 )
 
             if candidatos:
-                with open(candidatos[0], "r", encoding="utf-8") as _f:
-                    resultado = _json.load(_f)
+                with open(candidatos[0], "r", encoding="utf-8") as f:
+                    resultado = _json.load(f)
                 nombre = resultado.get("nombre", "modulo_nuevo")
                 codigo = resultado.get("codigo", "")
                 from modules.self_coder import confirmar_guardado
                 respuesta = confirmar_guardado(nombre, codigo)
-                _os.remove(candidatos[0])
+                os.remove(candidatos[0])
             else:
                 respuesta = "⚠️ No encontré ningún módulo pendiente de confirmar."
 
@@ -400,38 +232,30 @@ def responder(mensaje_usuario):
             return respuesta
 
         # ==========================================
-        # 🤖 AUTO-PROGRAMACIÓN
+        # 2️⃣ AUTO-PROGRAMACIÓN
         # ==========================================
-
         if intencion == "autoprogramacion":
-
-            print(f"\n🤖 Procesando: AUTO-PROGRAMACIÓN")
-
+            print("\n🤖 Procesando: AUTO-PROGRAMACIÓN")
             try:
                 resultado = auto_programar(mensaje_usuario)
-
-                nombre = resultado.get("nombre", "módulo_nuevo")
-                codigo = resultado.get("codigo", "")
+                nombre   = resultado.get("nombre", "módulo_nuevo")
+                codigo   = resultado.get("codigo", "")
                 pendiente = resultado.get("pendiente_confirmacion", False)
-                error = resultado.get("error", "")
+                error    = resultado.get("error", "")
 
                 if error and nombre == "error":
                     respuesta = f"❌ Error al auto-programarme: {error}"
                 elif pendiente:
-                    # Mostrar código generado y pedir confirmación
                     respuesta = (
                         f"🤖 **Módulo generado:** `{nombre}.py`\n\n"
                         f"```python\n{codigo[:800]}{'...' if len(codigo) > 800 else ''}\n```\n\n"
                         f"¿Confirmas que lo guarde? Escribe: **confirmar {nombre}**"
                     )
-                    # Guardar en session_state temporal via st no es posible aquí,
-                    # así que guardamos en un archivo temporal
-                    import tempfile, json as _json, os as _os
-                    tmp_path = _os.path.join(_os.path.dirname(__file__), "..", "logs", f"_pending_{nombre}.json")
-                    with open(tmp_path, "w", encoding="utf-8") as _f:
-                        _json.dump(resultado, _f, ensure_ascii=False, indent=2)
+                    tmp_path = os.path.join(os.path.dirname(__file__), "..", "logs", f"_pending_{nombre}.json")
+                    with open(tmp_path, "w", encoding="utf-8") as f:
+                        _json.dump(resultado, f, ensure_ascii=False, indent=2)
                 else:
-                    respuesta = f"❌ Resultado inesperado del auto-programador."
+                    respuesta = "❌ Resultado inesperado del auto-programador."
 
                 incrementar("autoprogramaciones")
 
@@ -446,76 +270,100 @@ def responder(mensaje_usuario):
             return respuesta
 
         # ==========================================
-        # 🔍 BÚSQUEDAS EN INTERNET
+        # 3️⃣ GUARDAR PENDIENTE
         # ==========================================
+        if intencion == "memoria":
+            print("\n🔄 Procesando: GUARDAR PENDIENTE")
 
+            texto_limpio = limpiar_texto(mensaje_usuario)
+            print(f"   Texto limpiado: '{texto_limpio}'")
+
+            fecha = None
+            if "mañana" in mensaje_usuario.lower():
+                fecha = (datetime.now().date() + timedelta(days=1)).isoformat()
+
+            lista = obtener_pendientes() or []
+            ya_existe = any(textos_similares(p.get("texto", ""), texto_limpio) for p in lista)
+
+            if ya_existe:
+                respuesta = "⚠️ Ya tienes ese pendiente."
+            else:
+                agregar_pendiente(texto_limpio, fecha)
+                respuesta = "📌 Guardado como pendiente."
+
+            agregar_mensaje("user", mensaje_usuario)
+            agregar_mensaje("assistant", respuesta)
+            guardar_log("usuario", mensaje_usuario)
+            guardar_log("tenshi", respuesta)
+            return respuesta
+
+        # ==========================================
+        # 4️⃣ CONSULTAR PENDIENTES
+        # ==========================================
+        if intencion == "consultar_pendientes":
+            print("\n🔄 Procesando: CONSULTAR PENDIENTES")
+
+            lista = obtener_pendientes() or []
+
+            if not lista:
+                respuesta = "📭 No tienes pendientes."
+            else:
+                respuesta = "📋 **Tus pendientes:**\n\n"
+                for i, p in enumerate(lista, 1):
+                    texto = p.get("texto", "Sin descripción")
+                    fecha = p.get("fecha", "Sin fecha")
+                    estado = p.get("estado", "pendiente")
+                    emoji = "⏳" if estado == "pendiente" else "✅"
+                    respuesta += f"{i}. {emoji} **{texto}** ({fecha})\n"
+
+            agregar_mensaje("user", mensaje_usuario)
+            agregar_mensaje("assistant", respuesta)
+            guardar_log("usuario", mensaje_usuario)
+            guardar_log("tenshi", respuesta)
+            return respuesta
+
+        # ==========================================
+        # 5️⃣ BÚSQUEDA EN INTERNET
+        # ==========================================
         if intencion == "busqueda":
-            
-            print(f"\n🔄 Procesando: BÚSQUEDA EN INTERNET")
-            
+            print("\n🔄 Procesando: BÚSQUEDA EN INTERNET")
             try:
-                print(f"   🌐 Buscando: {mensaje_usuario}")
-                
                 resultado = buscar_en_internet(mensaje_usuario, max_resultados=3)
-                
                 incrementar("busquedas_internet")
-                print(f"   ✅ BÚSQUEDA COMPLETADA")
-
                 agregar_mensaje("user", mensaje_usuario)
                 agregar_mensaje("assistant", resultado)
-
                 guardar_log("usuario", mensaje_usuario)
                 guardar_log("tenshi", resultado)
-
-                print(f"📤 RESPUESTA: {resultado[:100]}...\n")
                 return resultado
-
             except Exception as e:
-                print(f"   ❌ Error en búsqueda: {e}")
                 respuesta = f"❌ Error en búsqueda: {e}"
-                
                 agregar_mensaje("user", mensaje_usuario)
                 agregar_mensaje("assistant", respuesta)
-                
-                print(f"📤 RESPUESTA: {respuesta}\n")
                 return respuesta
 
         # ==========================================
-        # 🤖 RESPUESTA IA CON RAZONAMIENTO (GENERAL)
+        # 6️⃣ RESPUESTA IA GENERAL
         # ==========================================
-
-        print(f"\n🔄 Procesando: RESPUESTA IA GENERAL")
+        print("\n🔄 Procesando: RESPUESTA IA GENERAL")
 
         cliente, modelo = obtener_cliente()
-
-        # Construir razonamiento interno (no mostrado)
         razonamiento = construir_razonamiento(mensaje_usuario)
-        print(f"   🧠 Razonamiento construido")
-
-        # Generar respuesta con razonamiento
         texto = generar_respuesta_ia(razonamiento, cliente, modelo)
-        print(f"   ✅ RESPUESTA GENERADA")
 
-        # Guardar en memoria
         agregar_mensaje("user", mensaje_usuario)
         agregar_mensaje("assistant", texto)
-
         guardar_log("usuario", mensaje_usuario)
         guardar_log("tenshi", texto)
 
         print(f"📤 RESPUESTA: {texto[:100]}...\n")
         return texto
 
-
     except Exception as e:
-
         import traceback
-
         print("\n" + "="*60)
         print("🔥 ERROR REAL TENSHI 🔥")
         print("="*60)
         traceback.print_exc()
         print(f"MENSAJE: {str(e)}")
         print("="*60 + "\n")
-
         return f"ERROR REAL: {str(e)}"
