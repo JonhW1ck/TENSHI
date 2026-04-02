@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "fecha": "2026-04-01T21:22:10.098230",
+    "nombre": "calculadora_cientifica",
+    "instruccion": "prográmate un módulo de calculadora científica",
+    "estado": "pendiente_confirmacion"
+  },
+  {
+    "fecha": "2026-04-01T21:23:11.187152",
+    "nombre": "calculadora_cientifica",
+    "instruccion": "calculadora_cientifica",
+    "estado": "guardado_ok"
+  }
+]
