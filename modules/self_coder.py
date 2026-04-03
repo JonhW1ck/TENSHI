@@ -3,11 +3,13 @@
 # self_coder.py
 # ==========================================
 import os
+import re
 import json
 import importlib.util
 from datetime import datetime
 from groq import Groq
 from config import APIS, PERSONALIDAD, BASE_DIR, MODEL_CONFIG
+
 
 # ==========================================
 # OBTENER CLIENTE
@@ -17,6 +19,31 @@ def obtener_cliente():
         if datos.get("activa") and datos.get("api_key"):
             return Groq(api_key=datos["api_key"]), datos["model"]
     raise Exception("No hay APIs disponibles.")
+
+
+# ==========================================
+# LIMPIAR CÓDIGO — backticks y dunders
+# ==========================================
+def limpiar_codigo(codigo: str) -> str:
+    # Quitar backticks si el modelo los incluyó
+    if codigo.startswith("```"):
+        codigo = codigo.split("\n", 1)[1] if "\n" in codigo else ""
+    if codigo.endswith("```"):
+        codigo = codigo.rsplit("```", 1)[0]
+    codigo = codigo.strip()
+
+    # Corregir dunders mal escritos por Groq (_name_ → __name__)
+    dunders = [
+        "name", "main", "init", "dict", "str", "repr",
+        "len", "call", "class", "doc", "file", "all",
+        "iter", "next", "enter", "exit", "get", "set",
+    ]
+    for d in dunders:
+        # Solo reemplaza si tiene exactamente UN guión a cada lado
+        codigo = re.sub(rf'(?<![_])_{d}_(?![_])', f'__{d}__', codigo)
+
+    return codigo
+
 
 # ==========================================
 # GENERAR CÓDIGO CON GROQ
@@ -35,6 +62,7 @@ El módulo debe:
 - Ser compatible con el resto del proyecto TENSHI
 - No usar librerías externas que no estén en requirements.txt
 - Incluir un bloque if __name__ == "__main__" con ejemplos de uso
+- Usar SIEMPRE doble guión bajo en métodos especiales: __init__, __main__, __name__, __dict__
 
 Responde SOLO con el código Python puro. Sin explicaciones, sin markdown, sin bloques de código.
 """
@@ -44,18 +72,12 @@ Responde SOLO con el código Python puro. Sin explicaciones, sin markdown, sin b
             {"role": "system", "content": PERSONALIDAD},
             {"role": "user",   "content": prompt}
         ],
-        max_tokens=MODEL_CONFIG.get("max_tokens_code", 4096),  # ← usa config
+        max_tokens=MODEL_CONFIG.get("max_tokens_code", 4096),
         temperature=0.3
     )
     codigo = respuesta.choices[0].message.content.strip()
+    return limpiar_codigo(codigo)
 
-    if codigo.startswith("```"):
-        codigo = codigo.split("\n", 1)[1] if "\n" in codigo else ""
-    if codigo.endswith("```"):
-        codigo = codigo.rsplit("```", 1)[0]
-    codigo = codigo.strip()
-
-    return codigo
 
 # ==========================================
 # EXTRAER NOMBRE DEL MÓDULO
@@ -77,6 +99,7 @@ Responde SOLO con el nombre sin extensión .py
     nombre = respuesta.choices[0].message.content.strip()
     nombre = "".join(c for c in nombre if c.isalnum() or c == "_")
     return nombre or "modulo_nuevo"
+
 
 # ==========================================
 # GUARDAR LOG DE AUTO-MEJORAS
@@ -100,8 +123,9 @@ def guardar_log_mejora(nombre: str, instruccion: str, estado: str):
     except Exception as e:
         print(f"⚠️ Error guardando log: {e}")
 
+
 # ==========================================
-# GUARDAR E IMPORTAR MÓDULO
+# GUARDAR E IMPORTAR MÓDULO + COMMIT GITHUB
 # ==========================================
 def guardar_modulo(nombre: str, codigo: str) -> str:
     ruta = os.path.join(BASE_DIR, "modules", f"{nombre}.py")
@@ -129,6 +153,7 @@ def guardar_modulo(nombre: str, codigo: str) -> str:
         guardar_log_mejora(nombre, nombre, f"error: {str(e)}")
         return f"⚠️ Módulo guardado pero hubo error al importarlo: {e}"
 
+
 # ==========================================
 # FUNCIÓN PRINCIPAL
 # ==========================================
@@ -151,6 +176,6 @@ def auto_programar(instruccion: str) -> dict:
             "error":                  str(e),
         }
 
+
 def confirmar_guardado(nombre: str, codigo: str) -> str:
     return guardar_modulo(nombre, codigo)
-    
