@@ -10,10 +10,6 @@ from memory.stats import incrementar
 
 
 def ejecutar_codigo(codigo: str) -> dict:
-    """
-    Ejecuta código Python en subprocess seguro.
-    Devuelve dict con: exito, output, error, codigo
-    """
     try:
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".py",
@@ -52,10 +48,72 @@ def ejecutar_codigo(codigo: str) -> dict:
         return {"exito": False, "output": "", "error": str(e), "codigo": codigo}
 
 
+def verificar_output(codigo: str, output: str) -> dict:
+    """
+    Le pregunta al modelo si el output del código tiene sentido.
+    Devuelve dict con: valido (bool), razon (str)
+    """
+    try:
+        from groq import Groq
+        from config import APIS, PERSONALIDAD
+
+        cliente = None
+        modelo  = None
+        for _, datos in APIS.items():
+            if datos.get("activa") and datos.get("api_key"):
+                cliente = Groq(api_key=datos["api_key"])
+                modelo  = datos["model"]
+                break
+
+        if not cliente:
+            return {"valido": True, "razon": "No se pudo verificar."}
+
+        prompt = f"""
+Eres un verificador de resultados de código Python.
+
+Se ejecutó este código:
+{codigo}
+
+Y produjo este output:
+{output}
+
+Analiza si el output tiene sentido dado lo que hace el código.
+NO uses conocimiento externo, solo analiza si el código podría producir ese output.
+Detecta si hay datos inventados, valores imposibles o inconsistencias obvias.
+
+Responde SOLO en este formato JSON:
+{{"valido": true, "razon": "..."}}
+o
+{{"valido": false, "razon": "..."}}
+"""
+        respuesta = cliente.chat.completions.create(
+            model=modelo,
+            messages=[
+                {"role": "system", "content": "Eres un verificador de outputs de código Python. Responde solo en JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=200,
+            temperature=0.1
+        )
+        texto = respuesta.choices[0].message.content.strip()
+        # Limpiar backticks si los incluye
+        if "```" in texto:
+            texto = texto.split("```")[1] if "```" in texto else texto
+            texto = texto.replace("json","").strip()
+
+        import json
+        resultado = json.loads(texto)
+        return resultado
+
+    except Exception as e:
+        print(f"⚠️ Error en verificar_output: {e}")
+        return {"valido": True, "razon": "No se pudo verificar."}
+
+
 def ejecutar_modulo(nombre_modulo: str) -> dict:
     """
     Ejecuta un módulo existente de TENSHI por nombre.
-    Ejemplo: ejecutar_modulo('pomodoro_tracker')
+    Verifica automáticamente si el output tiene sentido.
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ruta = os.path.join(base_dir, "modules", f"{nombre_modulo}.py")
@@ -71,14 +129,23 @@ def ejecutar_modulo(nombre_modulo: str) -> dict:
     with open(ruta, "r", encoding="utf-8") as f:
         codigo = f.read()
 
-    return ejecutar_codigo(codigo)
+    resultado = ejecutar_codigo(codigo)
+
+    # ✅ Verificar si el output tiene sentido
+    if resultado["exito"] and resultado["output"] != "(sin output)":
+        verificacion = verificar_output(codigo, resultado["output"])
+        resultado["verificado"] = verificacion["valido"]
+        resultado["verificacion_razon"] = verificacion["razon"]
+        if not verificacion["valido"]:
+            resultado["output"] += f"\n\n⚠️ **Advertencia:** {verificacion['razon']}"
+    else:
+        resultado["verificado"] = None
+        resultado["verificacion_razon"] = ""
+
+    return resultado
 
 
 def autocorregir(codigo: str, error: str) -> str:
-    """
-    Manda el código y el error a Groq para que lo corrija.
-    Devuelve el código corregido como string.
-    """
     try:
         from groq import Groq
         from config import APIS, PERSONALIDAD
@@ -118,7 +185,6 @@ Sin explicaciones, sin markdown, sin bloques de código.
         )
         codigo_corregido = respuesta.choices[0].message.content.strip()
 
-        # Limpiar backticks si el modelo los incluyó
         if codigo_corregido.startswith("```"):
             codigo_corregido = codigo_corregido.split("\n", 1)[1] if "\n" in codigo_corregido else ""
         if codigo_corregido.endswith("```"):
@@ -132,10 +198,6 @@ Sin explicaciones, sin markdown, sin bloques de código.
 
 
 def ejecutar_y_corregir(codigo: str, nombre_modulo: str = "", intentos: int = 2) -> dict:
-    """
-    Ejecuta el código. Si falla, lo autocorrige y reintenta.
-    Devuelve dict con: exito, output, error, codigo_final, corregido
-    """
     codigo_actual = codigo
     corregido     = False
 
@@ -143,14 +205,12 @@ def ejecutar_y_corregir(codigo: str, nombre_modulo: str = "", intentos: int = 2)
         resultado = ejecutar_codigo(codigo_actual)
 
         if resultado["exito"]:
-            # Si fue corregido y hay nombre de módulo, sobreescribir el archivo
             if corregido and nombre_modulo:
                 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 ruta = os.path.join(base_dir, "modules", f"{nombre_modulo}.py")
                 try:
                     with open(ruta, "w", encoding="utf-8") as f:
                         f.write(codigo_actual)
-                    # Subir corrección a GitHub
                     try:
                         from modules.github_sync import commit_modulo
                         commit_modulo(nombre_modulo, codigo_actual)
@@ -168,7 +228,6 @@ def ejecutar_y_corregir(codigo: str, nombre_modulo: str = "", intentos: int = 2)
                 "intentos":    intento + 1,
             }
 
-        # Falló — intentar autocorregir si quedan intentos
         if intento < intentos - 1:
             print(f"⚠️ Intento {intento+1} falló, autocorrigiendo...")
             codigo_actual = autocorregir(codigo_actual, resultado["error"])
