@@ -96,24 +96,26 @@ def analizar_y_proponer():
 
         prompt = f"""
 Eres TENSHI, un sistema de IA en evolución.
+Analiza ÚNICAMENTE la conversación reciente que se muestra abajo.
+NO inventes problemas. NO asumas cosas que no estén explícitamente en el texto.
+Solo reporta lo que puedas observar directamente en la conversación.
 
-Analiza la conversación reciente y detecta:
-
-1. Necesidades no cubiertas del usuario
-2. Fallos en tus respuestas o comportamiento
-3. Oportunidades de mejora funcional (módulos, lógica, UX)
+Detecta SOLO si hay:
+1. Una solicitud del usuario que no fue respondida correctamente
+2. Un error explícito mencionado por el usuario
+3. Una funcionalidad que el usuario pidió y no existe
 
 Conversación:
 {historial_texto}
 
 Formato de respuesta:
 
-Si hay mejora:
+Si hay algo concreto y observable:
 PROPUESTA: ...
 RAZÓN: ...
 IMPACTO: ...
 
-Si no hay nada relevante:
+Si no hay nada concreto y observable:
 SIN_PROPUESTA
 """
 
