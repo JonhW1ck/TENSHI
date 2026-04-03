@@ -25,6 +25,18 @@ st.set_page_config(
 )
 
 # ==========================================
+# 📱 PWA MANIFEST
+# ==========================================
+
+st.markdown("""
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#b8960c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TENSHI">
+""", unsafe_allow_html=True)
+
+# ==========================================
 # 🎨 CSS — estética TorreIA
 # ==========================================
 
