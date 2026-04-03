@@ -82,11 +82,9 @@ def generar_respuesta_ia(mensaje_usuario, cliente, modelo):
 
 def _extraer_nombre_modulo(texto):
     tl = texto.lower()
-    # Busca nombre con .py explícito primero
     match = re.search(r'(\w+)\.py', tl)
     if match:
         return match.group(1)
-    # Si no, busca después del trigger saltando artículos y palabras vacías
     triggers = ["ejecuta","ejecutar","corre","prueba","testea","lanza"]
     skip = {"el","la","los","las","un","una","módulo","modulo"}
     palabras = tl.split()
@@ -165,7 +163,12 @@ def responder(mensaje_usuario):
                 print(f"▶️ Ejecutando módulo: {nombre_modulo}")
                 resultado = ejecutar_modulo(nombre_modulo)
                 if resultado["exito"]:
-                    respuesta = f"▶️ **{nombre_modulo}.py** ejecutado:\n```\n{resultado['output']}\n```"
+                    verificacion = ""
+                    if resultado.get("verificado") == True:
+                        verificacion = f"\n\n✅ **Verificado:** {resultado.get('verificacion_razon','')}"
+                    elif resultado.get("verificado") == False:
+                        verificacion = f"\n\n⚠️ **Advertencia:** {resultado.get('verificacion_razon','')}"
+                    respuesta = f"▶️ **{nombre_modulo}.py** ejecutado:\n```\n{resultado['output']}\n```{verificacion}"
                 else:
                     print("⚠️ Error detectado, autocorrigiendo...")
                     ruta_modulo = os.path.join(os.path.dirname(__file__), f"{nombre_modulo}.py")
