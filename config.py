@@ -66,8 +66,11 @@ AI_CONFIG = {
 # CONFIGURACIÓN DEL MODELO
 # ============================================
 MODEL_CONFIG = {
-    "temperature": 0.7,
-    "max_tokens":  1024,
+    "temperature":            0.7,
+    "max_tokens":             1500,  # Chat general
+    "max_tokens_code":        4096,  # Generación de código/módulos
+    "max_tokens_verify":       200,  # Verificación de outputs
+    "max_tokens_autonomy":     400,  # Análisis de autonomía
 }
 
 # ============================================

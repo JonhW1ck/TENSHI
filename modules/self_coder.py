@@ -7,7 +7,7 @@ import json
 import importlib.util
 from datetime import datetime
 from groq import Groq
-from config import APIS, PERSONALIDAD, BASE_DIR
+from config import APIS, PERSONALIDAD, BASE_DIR, MODEL_CONFIG
 
 # ==========================================
 # OBTENER CLIENTE
@@ -34,6 +34,7 @@ El módulo debe:
 - Incluir manejo de errores con try/except
 - Ser compatible con el resto del proyecto TENSHI
 - No usar librerías externas que no estén en requirements.txt
+- Incluir un bloque if __name__ == "__main__" con ejemplos de uso
 
 Responde SOLO con el código Python puro. Sin explicaciones, sin markdown, sin bloques de código.
 """
@@ -43,12 +44,11 @@ Responde SOLO con el código Python puro. Sin explicaciones, sin markdown, sin b
             {"role": "system", "content": PERSONALIDAD},
             {"role": "user",   "content": prompt}
         ],
-        max_tokens=2048,
+        max_tokens=MODEL_CONFIG.get("max_tokens_code", 4096),  # ← usa config
         temperature=0.3
     )
     codigo = respuesta.choices[0].message.content.strip()
 
-    # Limpiar backticks si el modelo los incluyó de todas formas
     if codigo.startswith("```"):
         codigo = codigo.split("\n", 1)[1] if "\n" in codigo else ""
     if codigo.endswith("```"):
@@ -106,16 +106,13 @@ def guardar_log_mejora(nombre: str, instruccion: str, estado: str):
 def guardar_modulo(nombre: str, codigo: str) -> str:
     ruta = os.path.join(BASE_DIR, "modules", f"{nombre}.py")
     try:
-        # 1. Guardar localmente
         with open(ruta, "w", encoding="utf-8") as f:
             f.write(codigo)
 
-        # 2. Importar dinámicamente
         spec = importlib.util.spec_from_file_location(nombre, ruta)
         modulo = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(modulo)
 
-        # 3. Commit automático a GitHub
         try:
             from modules.github_sync import commit_modulo
             resultado_git = commit_modulo(nombre, codigo)
@@ -156,3 +153,4 @@ def auto_programar(instruccion: str) -> dict:
 
 def confirmar_guardado(nombre: str, codigo: str) -> str:
     return guardar_modulo(nombre, codigo)
+    

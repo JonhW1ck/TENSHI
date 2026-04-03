@@ -66,14 +66,20 @@ def obtener_cliente():
                 print(f"⚠️ Error API: {e}")
     raise Exception("No hay APIs disponibles.")
 
-def generar_respuesta_ia(mensaje_usuario, cliente, modelo):
+def generar_respuesta_ia(mensaje_usuario, cliente, modelo, max_tokens=None):
     historial = obtener_historial()[-10:]
     mensajes = [{"role":"system","content":PERSONALIDAD}]
     for m in historial:
         if m.get("role") in ["user","assistant"] and m.get("content"):
             mensajes.append({"role":m["role"],"content":m["content"]})
     mensajes.append({"role":"user","content":mensaje_usuario})
-    respuesta = cliente.chat.completions.create(model=modelo,messages=mensajes,max_tokens=MODEL_CONFIG.get("max_tokens",512),temperature=MODEL_CONFIG.get("temperature",0.7))
+    tokens = max_tokens or MODEL_CONFIG.get("max_tokens", 1500)
+    respuesta = cliente.chat.completions.create(
+        model=modelo,
+        messages=mensajes,
+        max_tokens=tokens,
+        temperature=MODEL_CONFIG.get("temperature", 0.7)
+    )
     try:
         texto = respuesta.choices[0].message.content.strip()
         return texto if texto else "⚠️ No recibí respuesta."
@@ -131,7 +137,7 @@ def responder(mensaje_usuario):
             guardar_log("usuario",mensaje_usuario); guardar_log("tenshi",respuesta)
             return respuesta
 
-        # 2️⃣ AUTO-PROGRAMACIÓN
+        # 2️⃣ AUTO-PROGRAMACIÓN — usa max_tokens_code
         if intencion == "autoprogramacion":
             try:
                 resultado = auto_programar(mensaje_usuario)
@@ -227,10 +233,13 @@ def responder(mensaje_usuario):
                 agregar_mensaje("user",mensaje_usuario); agregar_mensaje("assistant",respuesta)
                 return respuesta
 
-        # 7️⃣ GENERAL
+        # 7️⃣ GENERAL — usa max_tokens normal
         cliente, modelo = obtener_cliente()
         razonamiento = construir_razonamiento(mensaje_usuario)
-        texto = generar_respuesta_ia(razonamiento, cliente, modelo)
+        texto = generar_respuesta_ia(
+            razonamiento, cliente, modelo,
+            max_tokens=MODEL_CONFIG.get("max_tokens", 1500)
+        )
         agregar_mensaje("user",mensaje_usuario); agregar_mensaje("assistant",texto)
         guardar_log("usuario",mensaje_usuario); guardar_log("tenshi",texto)
         return texto
