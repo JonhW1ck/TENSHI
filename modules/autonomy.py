@@ -81,12 +81,17 @@ SIN_PROPUESTA
 
         propuesta_linea = ""
         comando_linea = ""
+        modo = None
 
         for linea in texto.splitlines():
             if linea.startswith("PROPUESTA:"):
                 propuesta_linea = linea.replace("PROPUESTA:", "").strip()
+                modo = None
             elif linea.startswith("COMANDO:"):
                 comando_linea = linea.replace("COMANDO:", "").strip()
+                modo = "comando"
+            elif modo == "comando" and linea.strip():
+                modo = None
 
         if not propuesta_linea or not comando_linea:
             return None
