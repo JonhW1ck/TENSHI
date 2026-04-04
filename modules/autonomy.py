@@ -3,17 +3,17 @@
 # ==========================================
 
 from groq import Groq
-from config import APIS, MODELOS, PERSONALIDAD, MODEL_CONFIG
+from config import APIS, PERSONALIDAD, MODEL_CONFIG
 from memory.memory import obtener_historial
 from logs.logger import guardar_log
 
 
 def obtener_cliente():
     for nombre, datos in APIS.items():
-        if datos.get("activa"):
+        if datos.get("activa") and datos.get("api_key"):
             try:
                 cliente = Groq(api_key=datos["api_key"])
-                modelo = MODELOS["principal"]
+                modelo = datos.get("model", "llama-3.1-8b-instant")
                 print(f"🧠 Autonomía usando API: {nombre}")
                 return cliente, modelo
             except Exception as e:
@@ -39,18 +39,11 @@ def analizar_y_proponer():
         if not historial or len(historial) < 6:
             return None
 
-        if len(historial) % 10 != 0:
-            return None
-
         cliente, modelo = obtener_cliente()
         historial_texto = formatear_historial(historial)
 
         if not historial_texto:
             return None
-
-        # ======================================
-        # 🧾 PROMPT — genera propuesta accionable
-        # ======================================
 
         prompt = f"""
 Eres TENSHI, un sistema de IA en evolución.
@@ -92,10 +85,6 @@ SIN_PROPUESTA
         if "PROPUESTA" not in texto or "COMANDO" not in texto:
             return None
 
-        # ======================================
-        # 📤 EXTRAER COMANDO ACCIONABLE
-        # ======================================
-
         propuesta_linea = ""
         comando_linea = ""
 
@@ -109,10 +98,8 @@ SIN_PROPUESTA
             return None
 
         guardar_log("tenshi_autonomia", texto)
-
-        # Devuelve el comando accionable con descripción visible
         return f"💡 **{propuesta_linea}**\n\n_{comando_linea}_"
 
     except Exception as e:
         print("⚠️ Error en autonomía:", e)
-        return None
+        return None 
