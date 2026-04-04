@@ -2,96 +2,54 @@
 # 🧠 MÓDULO DE AUTONOMÍA DE TENSHI
 # ==========================================
 
-
-# ==========================================
-# 📦 IMPORTS
-# ==========================================
-
 from groq import Groq
 from config import APIS, MODELOS, PERSONALIDAD, MODEL_CONFIG
-
 from memory.memory import obtener_historial
 from logs.logger import guardar_log
 
 
-# ==========================================
-# 🤖 CLIENTE API
-# ==========================================
-
 def obtener_cliente():
-    """
-    Selecciona una API activa de forma segura.
-    """
-
     for nombre, datos in APIS.items():
         if datos.get("activa"):
             try:
                 cliente = Groq(api_key=datos["api_key"])
                 modelo = MODELOS["principal"]
-
                 print(f"🧠 Autonomía usando API: {nombre}")
-
                 return cliente, modelo
-
             except Exception as e:
                 print(f"❌ Error con {nombre}:", e)
-
     raise Exception("No hay APIs disponibles para autonomía.")
 
 
-# ==========================================
-# 📊 FORMATEO DE HISTORIAL
-# ==========================================
-
 def formatear_historial(historial):
-    """
-    Convierte historial en texto compacto y seguro.
-    """
-
     bloques = []
-
     for m in historial[-10:]:
         role = m.get("role", "unknown").upper()
         content = m.get("content", "")
-
         if not content:
             continue
-
         bloques.append(f"{role}: {content[:120]}")
-
     return "\n".join(bloques)
 
 
-# ==========================================
-# 🧠 ANÁLISIS Y PROPUESTA
-# ==========================================
-
 def analizar_y_proponer():
-    """
-    TENSHI analiza el historial y propone mejoras del sistema.
-    """
-
     try:
         historial = obtener_historial()
 
-        # 🔹 Validación mínima
         if not historial or len(historial) < 6:
             return None
 
-        # 🔹 Frecuencia de análisis (cada 10 mensajes)
         if len(historial) % 10 != 0:
             return None
 
         cliente, modelo = obtener_cliente()
-
         historial_texto = formatear_historial(historial)
 
         if not historial_texto:
             return None
 
-
         # ======================================
-        # 🧾 PROMPT DE AUTO-MEJORA
+        # 🧾 PROMPT — genera propuesta accionable
         # ======================================
 
         prompt = f"""
@@ -108,21 +66,13 @@ Detecta SOLO si hay:
 Conversación:
 {historial_texto}
 
-Formato de respuesta:
+Si detectas algo concreto, responde EXACTAMENTE en este formato:
+PROPUESTA: <descripción breve para el usuario>
+COMANDO: prográmate un módulo <descripción técnica concreta en una línea>
 
-Si hay algo concreto y observable:
-PROPUESTA: ...
-RAZÓN: ...
-IMPACTO: ...
-
-Si no hay nada concreto y observable:
+Si no hay nada concreto:
 SIN_PROPUESTA
 """
-
-
-        # ======================================
-        # 🤖 LLAMADA AL MODELO
-        # ======================================
 
         respuesta = cliente.chat.completions.create(
             model=modelo,
@@ -130,26 +80,38 @@ SIN_PROPUESTA
                 {"role": "system", "content": PERSONALIDAD},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=400,
+            max_tokens=MODEL_CONFIG.get("max_tokens_autonomy", 400),
             temperature=0.4
         )
 
         texto = respuesta.choices[0].message.content.strip()
 
-
-        # ======================================
-        # 📤 VALIDACIÓN DE RESPUESTA
-        # ======================================
-
         if not texto or "SIN_PROPUESTA" in texto:
             return None
 
-        if "PROPUESTA" not in texto:
+        if "PROPUESTA" not in texto or "COMANDO" not in texto:
+            return None
+
+        # ======================================
+        # 📤 EXTRAER COMANDO ACCIONABLE
+        # ======================================
+
+        propuesta_linea = ""
+        comando_linea = ""
+
+        for linea in texto.splitlines():
+            if linea.startswith("PROPUESTA:"):
+                propuesta_linea = linea.replace("PROPUESTA:", "").strip()
+            elif linea.startswith("COMANDO:"):
+                comando_linea = linea.replace("COMANDO:", "").strip()
+
+        if not propuesta_linea or not comando_linea:
             return None
 
         guardar_log("tenshi_autonomia", texto)
 
-        return texto
+        # Devuelve el comando accionable con descripción visible
+        return f"💡 **{propuesta_linea}**\n\n_{comando_linea}_"
 
     except Exception as e:
         print("⚠️ Error en autonomía:", e)

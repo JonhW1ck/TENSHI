@@ -55,7 +55,6 @@ def inyectar_css(ac: str, bg: str, modo: str):
     [data-testid="stHeader"] {{ background: transparent !important; }}
     [data-testid="stMainBlockContainer"] {{ padding-top: 1rem !important; }}
 
-    /* Nav bar */
     .tenshi-nav {{
         display: flex; justify-content: space-between; align-items: center;
         padding: 10px 0; margin-bottom: 12px;
@@ -73,7 +72,6 @@ def inyectar_css(ac: str, bg: str, modo: str):
         color: {texto}; font-weight: 500;
     }}
 
-    /* Stats */
     [data-testid="metric-container"] {{
         background: {superficie};
         border: 1px solid {borde};
@@ -93,7 +91,6 @@ def inyectar_css(ac: str, bg: str, modo: str):
         opacity: 0.4;
     }}
 
-    /* Mensajes del chat */
     .msg-tenshi {{
         background: {superficie};
         border: 1px solid {borde};
@@ -121,7 +118,6 @@ def inyectar_css(ac: str, bg: str, modo: str):
         max-width: 85%;
     }}
 
-    /* Input */
     [data-testid="stTextInput"] input {{
         background: {superficie} !important;
         border: 1px solid {borde} !important;
@@ -131,7 +127,6 @@ def inyectar_css(ac: str, bg: str, modo: str):
         font-size: 15px !important;
     }}
 
-    /* Botones */
     [data-testid="stButton"] button {{
         background: transparent !important;
         border: 1px solid {borde} !important;
@@ -146,19 +141,16 @@ def inyectar_css(ac: str, bg: str, modo: str):
         color: {ac} !important;
     }}
 
-    /* Expanders */
     [data-testid="stExpander"] {{
         background: {superficie} !important;
         border: 1px solid {borde} !important;
         border-radius: 6px !important;
     }}
 
-    /* Scrollbar */
     ::-webkit-scrollbar {{ width: 4px; }}
     ::-webkit-scrollbar-track {{ background: transparent; }}
     ::-webkit-scrollbar-thumb {{ background: {ac}; border-radius: 2px; opacity: 0.5; }}
 
-    /* Footer */
     .tenshi-footer {{
         text-align: center;
         font-size: 10px;
@@ -182,6 +174,8 @@ if "color_fondo" not in st.session_state:
     st.session_state.color_fondo = "#080808"
 if "modo" not in st.session_state:
     st.session_state.modo = "noche"
+if "propuesta_pendiente" not in st.session_state:
+    st.session_state.propuesta_pendiente = None
 
 inyectar_css(
     st.session_state.color_acento,
@@ -385,7 +379,7 @@ if enviar and entrada.strip() and not st.session_state.procesando:
     try:
         propuesta = analizar_y_proponer()
         if propuesta:
-            st.session_state.mensajes_ui.append({"rol": "assistant", "texto": f"💡 {propuesta}"})
+            st.session_state.propuesta_pendiente = propuesta
     except Exception:
         pass
 
@@ -398,6 +392,32 @@ if enviar and entrada.strip() and not st.session_state.procesando:
 
     st.session_state.procesando = False
     st.rerun()
+
+# ==========================================
+# 🤖 PROPUESTA AUTÓNOMA DE CRECIMIENTO
+# ==========================================
+
+if st.session_state.propuesta_pendiente:
+    propuesta = st.session_state.propuesta_pendiente
+    st.markdown(f"""
+    <div class='msg-tenshi'>
+        <div class='msg-tenshi-label'>TENSHI · PROPUESTA AUTÓNOMA</div>
+        {propuesta}
+    </div>
+    """, unsafe_allow_html=True)
+    col_ap, col_ig = st.columns([1,1])
+    with col_ap:
+        if st.button("✅ Aprobar"):
+            st.session_state.mensajes_ui.append({"rol": "user", "texto": propuesta})
+            with st.spinner("···"):
+                respuesta = responder(propuesta)
+            st.session_state.mensajes_ui.append({"rol": "assistant", "texto": respuesta})
+            st.session_state.propuesta_pendiente = None
+            st.rerun()
+    with col_ig:
+        if st.button("❌ Ignorar"):
+            st.session_state.propuesta_pendiente = None
+            st.rerun()
 
 # ==========================================
 # 🎨 PANEL DE PERSONALIZACIÓN

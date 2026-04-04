@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import os
+import json
 from memory.stats import incrementar
 
 
@@ -49,13 +50,9 @@ def ejecutar_codigo(codigo: str) -> dict:
 
 
 def verificar_output(codigo: str, output: str) -> dict:
-    """
-    Le pregunta al modelo si el output del código tiene sentido.
-    Devuelve dict con: valido (bool), razon (str)
-    """
     try:
         from groq import Groq
-        from config import APIS, PERSONALIDAD
+        from config import APIS, PERSONALIDAD, MODEL_CONFIG
 
         cliente = None
         modelo  = None
@@ -81,27 +78,23 @@ Analiza si el output tiene sentido dado lo que hace el código.
 NO uses conocimiento externo, solo analiza si el código podría producir ese output.
 Detecta si hay datos inventados, valores imposibles o inconsistencias obvias.
 
-Responde SOLO en este formato JSON:
+Responde SOLO en este formato JSON sin backticks ni markdown:
 {{"valido": true, "razon": "..."}}
-o
-{{"valido": false, "razon": "..."}}
 """
         respuesta = cliente.chat.completions.create(
             model=modelo,
             messages=[
-                {"role": "system", "content": "Eres un verificador de outputs de código Python. Responde solo en JSON."},
+                {"role": "system", "content": "Eres un verificador de outputs de código Python. Responde solo en JSON puro sin backticks."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=200,
+            max_tokens=MODEL_CONFIG.get("max_tokens_verify", 200),
             temperature=0.1
         )
         texto = respuesta.choices[0].message.content.strip()
-        # Limpiar backticks si los incluye
-        if "```" in texto:
-            texto = texto.split("```")[1] if "```" in texto else texto
-            texto = texto.replace("json","").strip()
 
-        import json
+        # Limpiar backticks de forma más robusta
+        texto = texto.replace("```json", "").replace("```", "").strip()
+
         resultado = json.loads(texto)
         return resultado
 
@@ -111,10 +104,6 @@ o
 
 
 def ejecutar_modulo(nombre_modulo: str) -> dict:
-    """
-    Ejecuta un módulo existente de TENSHI por nombre.
-    Verifica automáticamente si el output tiene sentido.
-    """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ruta = os.path.join(base_dir, "modules", f"{nombre_modulo}.py")
 
@@ -131,7 +120,6 @@ def ejecutar_modulo(nombre_modulo: str) -> dict:
 
     resultado = ejecutar_codigo(codigo)
 
-    # ✅ Verificar si el output tiene sentido
     if resultado["exito"] and resultado["output"] != "(sin output)":
         verificacion = verificar_output(codigo, resultado["output"])
         resultado["verificado"] = verificacion["valido"]
@@ -148,7 +136,7 @@ def ejecutar_modulo(nombre_modulo: str) -> dict:
 def autocorregir(codigo: str, error: str) -> str:
     try:
         from groq import Groq
-        from config import APIS, PERSONALIDAD
+        from config import APIS, PERSONALIDAD, MODEL_CONFIG
 
         cliente = None
         modelo  = None
@@ -180,7 +168,7 @@ Sin explicaciones, sin markdown, sin bloques de código.
                 {"role": "system", "content": PERSONALIDAD},
                 {"role": "user",   "content": prompt}
             ],
-            max_tokens=2048,
+            max_tokens=MODEL_CONFIG.get("max_tokens_code", 4096),
             temperature=0.2
         )
         codigo_corregido = respuesta.choices[0].message.content.strip()
@@ -220,12 +208,12 @@ def ejecutar_y_corregir(codigo: str, nombre_modulo: str = "", intentos: int = 2)
                     pass
 
             return {
-                "exito":       True,
-                "output":      resultado["output"],
-                "error":       "",
+                "exito":        True,
+                "output":       resultado["output"],
+                "error":        "",
                 "codigo_final": codigo_actual,
-                "corregido":   corregido,
-                "intentos":    intento + 1,
+                "corregido":    corregido,
+                "intentos":     intento + 1,
             }
 
         if intento < intentos - 1:

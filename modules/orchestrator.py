@@ -101,10 +101,25 @@ def _extraer_nombre_modulo(texto):
                     return palabras[j].replace(".py","")
     return None
 
+def _extraer_comando_autonomo(texto):
+    """
+    Extrae solo el comando accionable de una propuesta autónoma.
+    La propuesta viene como: '💡 **descripción**\n\n_comando_'
+    """
+    for linea in texto.splitlines():
+        linea = linea.strip().strip("_").strip("*").strip()
+        if linea.lower().startswith("prográmate") or linea.lower().startswith("programate"):
+            return linea
+    return texto
+
 def responder(mensaje_usuario):
     try:
         if not mensaje_usuario:
             return "⚠️ No recibí ningún mensaje."
+
+        # Si viene una propuesta autónoma, extraer solo el comando
+        if "💡" in mensaje_usuario and "prográmate" in mensaje_usuario.lower():
+            mensaje_usuario = _extraer_comando_autonomo(mensaje_usuario)
 
         incrementar("mensajes_totales")
         intencion = detectar_intencion(mensaje_usuario)
@@ -137,7 +152,7 @@ def responder(mensaje_usuario):
             guardar_log("usuario",mensaje_usuario); guardar_log("tenshi",respuesta)
             return respuesta
 
-        # 2️⃣ AUTO-PROGRAMACIÓN — usa max_tokens_code
+        # 2️⃣ AUTO-PROGRAMACIÓN
         if intencion == "autoprogramacion":
             try:
                 resultado = auto_programar(mensaje_usuario)
@@ -177,15 +192,20 @@ def responder(mensaje_usuario):
                     respuesta = f"▶️ **{nombre_modulo}.py** ejecutado:\n```\n{resultado['output']}\n```{verificacion}"
                 else:
                     print("⚠️ Error detectado, autocorrigiendo...")
-                    ruta_modulo = os.path.join(os.path.dirname(__file__), f"{nombre_modulo}.py")
-                    with open(ruta_modulo,"r",encoding="utf-8") as f:
-                        codigo = f.read()
-                    resultado2 = ejecutar_y_corregir(codigo, nombre_modulo)
-                    if resultado2["exito"]:
-                        estado = "✅ Autocorregido y " if resultado2["corregido"] else ""
-                        respuesta = (f"🔧 **Error detectado y corregido automáticamente.**\n\n"f"▶️ {estado}ejecutado:\n```\n{resultado2['output']}\n```")
-                    else:
-                        respuesta = (f"❌ No pude corregir el error en `{nombre_modulo}.py`:\n```\n{resultado2['error']}\n```")
+                    # ✅ Ruta corregida
+                    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    ruta_modulo = os.path.join(base_dir, "modules", f"{nombre_modulo}.py")
+                    try:
+                        with open(ruta_modulo,"r",encoding="utf-8") as f:
+                            codigo = f.read()
+                        resultado2 = ejecutar_y_corregir(codigo, nombre_modulo)
+                        if resultado2["exito"]:
+                            estado = "✅ Autocorregido y " if resultado2["corregido"] else ""
+                            respuesta = (f"🔧 **Error detectado y corregido automáticamente.**\n\n"f"▶️ {estado}ejecutado:\n```\n{resultado2['output']}\n```")
+                        else:
+                            respuesta = (f"❌ No pude corregir el error en `{nombre_modulo}.py`:\n```\n{resultado2['error']}\n```")
+                    except FileNotFoundError:
+                        respuesta = f"❌ No encontré el archivo `{nombre_modulo}.py` en modules/"
             else:
                 respuesta = "⚠️ No entendí qué módulo ejecutar. Escribe: **ejecuta nombre_modulo.py**"
             agregar_mensaje("user",mensaje_usuario); agregar_mensaje("assistant",respuesta)
@@ -233,7 +253,7 @@ def responder(mensaje_usuario):
                 agregar_mensaje("user",mensaje_usuario); agregar_mensaje("assistant",respuesta)
                 return respuesta
 
-        # 7️⃣ GENERAL — usa max_tokens normal
+        # 7️⃣ GENERAL
         cliente, modelo = obtener_cliente()
         razonamiento = construir_razonamiento(mensaje_usuario)
         texto = generar_respuesta_ia(
